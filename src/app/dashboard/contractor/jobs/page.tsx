@@ -1,109 +1,109 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useJobs } from "@/lib/hooks/useLeads";
+import { jobService } from "@/lib/services/lead.service";
+import { useStore } from "@/lib/store";
+import type { Job, JobStage } from "@/lib/types";
+import { useState } from "react";
 
-const stages = ["Quoted", "Scheduled", "In Progress", "Completed"] as const;
-type Stage = (typeof stages)[number];
-
-const stageVariant: Record<Stage, "secondary" | "warning" | "default" | "success"> = {
+const stages: JobStage[] = ["Quoted", "Scheduled", "In Progress", "Completed"];
+const stageProgress: Record<JobStage, number> = { Quoted: 25, Scheduled: 50, "In Progress": 75, Completed: 100 };
+const stageVariant: Record<JobStage, "secondary" | "warning" | "default" | "success"> = {
   Quoted: "secondary",
   Scheduled: "warning",
   "In Progress": "default",
   Completed: "success",
 };
 
-const stageProgress: Record<Stage, number> = { Quoted: 25, Scheduled: 50, "In Progress": 75, Completed: 100 };
+export default function ContractorJobsPage() {
+  const { addNotification } = useStore();
+  const { jobs, loading, refresh } = useJobs();
+  const [advancing, setAdvancing] = useState<string | null>(null);
 
-interface Job {
-  id: number;
-  family: string;
-  address: string;
-  description: string;
-  stage: Stage;
-  startDate: string;
-  estCompletion: string;
-}
+  const activeJobs = jobs.filter((j) => j.stage !== "Completed");
 
-const initialJobs: Job[] = [
-  { id: 1, family: "Smith Family", address: "321 Elm St, Springfield", description: "Lead paint removal - kitchen and living room", stage: "In Progress", startDate: "2026-03-10", estCompletion: "2026-03-25" },
-  { id: 2, family: "Brown Family", address: "654 Cedar Ln, Riverside", description: "Asbestos abatement - basement ceiling tiles", stage: "Scheduled", startDate: "2026-03-22", estCompletion: "2026-04-05" },
-  { id: 3, family: "Davis Family", address: "987 Birch Dr, Lakeview", description: "Mold remediation - bathroom and crawl space", stage: "Quoted", startDate: "2026-03-28", estCompletion: "2026-04-10" },
-  { id: 4, family: "Anderson Family", address: "357 Ash Blvd, Westfield", description: "Radon mitigation system installation", stage: "In Progress", startDate: "2026-03-08", estCompletion: "2026-03-22" },
-];
-
-export default function ContractorJobs() {
-  const [jobs, setJobs] = useState<Job[]>(initialJobs);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const advanceStage = (id: number) => {
-    setJobs((prev) =>
-      prev.map((j) => {
-        if (j.id !== id) return j;
-        const idx = stages.indexOf(j.stage);
-        if (idx < stages.length - 1) {
-          const next = stages[idx + 1];
-          showToast(`Job updated to "${next}"`);
-          return { ...j, stage: next };
-        }
-        return j;
-      })
-    );
+  const advanceStage = async (job: Job) => {
+    const idx = stages.indexOf(job.stage);
+    if (idx < stages.length - 1) {
+      const next = stages[idx + 1];
+      const nextProgress = stageProgress[next];
+      setAdvancing(job.id);
+      const { error } = await jobService.updateStage(job.id, next, nextProgress);
+      if (!error) {
+        addNotification({ title: "Job Updated", message: `Job moved to "${next}".`, type: "success" });
+        await refresh();
+      }
+      setAdvancing(null);
+    }
   };
 
   return (
     <DashboardLayout>
-      {toast && (
-        <div className="fixed right-4 top-4 z-50 rounded-md bg-green-600 px-4 py-2 text-sm text-white shadow-lg">
-          {toast}
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Active Jobs</h1>
+          <p className="text-gray-500">Track and update your current projects.</p>
         </div>
-      )}
-      <h1 className="text-2xl font-bold text-gray-900">Active Jobs</h1>
-      <p className="mt-1 text-sm text-gray-500">Track and update your current projects.</p>
 
-      <div className="mt-6 space-y-4">
-        {jobs.map((job) => (
-          <Card key={job.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <Link href={`/dashboard/contractor/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-blue-600">
-                      {job.address}
-                    </Link>
-                    <Badge variant={stageVariant[job.stage]}>{job.stage}</Badge>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-700">{job.family}</p>
-                  <p className="text-sm text-gray-500">{job.description}</p>
-                  <div className="mt-1 flex gap-4 text-xs text-gray-400">
-                    <span>Start: {job.startDate}</span>
-                    <span>Est. completion: {job.estCompletion}</span>
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="h-2 flex-1 rounded-full bg-gray-200">
-                      <div className="h-2 rounded-full bg-blue-600 transition-all" style={{ width: `${stageProgress[job.stage]}%` }} />
-                    </div>
-                    <span className="text-xs font-medium text-gray-500">{stageProgress[job.stage]}%</span>
-                  </div>
-                </div>
-                {job.stage !== "Completed" && (
-                  <Button size="sm" className="ml-4 shrink-0" onClick={() => advanceStage(job.id)}>
-                    Update Status
-                  </Button>
-                )}
-              </div>
+        {loading ? (
+          <div className="space-y-4">
+            {[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-gray-100" />)}
+          </div>
+        ) : activeJobs.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center text-gray-400">
+              <p>No active jobs. Accept leads to get started.</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          <div className="space-y-4">
+            {activeJobs.map((job) => (
+              <Card key={job.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <Link href={`/dashboard/contractor/jobs/${job.id}`} className="font-semibold text-gray-900 hover:text-blue-600">
+                          {job.title}
+                        </Link>
+                        <Badge variant={stageVariant[job.stage]}>{job.stage}</Badge>
+                      </div>
+                      {job.address && <p className="mt-0.5 text-sm text-gray-500">{job.address}</p>}
+                      <p className="text-sm text-gray-500">{job.family_profile?.name}</p>
+                      {job.amount && (
+                        <p className="mt-0.5 text-sm font-medium text-gray-700">${job.amount.toLocaleString()}</p>
+                      )}
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="h-1.5 flex-1 rounded-full bg-gray-100">
+                          <div
+                            className="h-1.5 rounded-full bg-blue-500 transition-all"
+                            style={{ width: `${job.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-gray-500">{job.progress}%</span>
+                      </div>
+                    </div>
+                    {job.stage !== "Completed" && (
+                      <Button
+                        size="sm"
+                        className="shrink-0"
+                        disabled={advancing === job.id}
+                        onClick={() => advanceStage(job)}
+                      >
+                        {advancing === job.id ? "Updating..." : "Update Status"}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

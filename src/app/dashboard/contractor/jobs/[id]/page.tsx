@@ -1,86 +1,179 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { jobService } from "@/lib/services/lead.service";
+import { useStore } from "@/lib/store";
+import type { Job, JobStage } from "@/lib/types";
+import { MapPin, User, DollarSign, ChevronRight } from "lucide-react";
 
-const jobsData: Record<string, { family: string; address: string; status: string; description: string; hazards: { name: string; desc: string }[]; timeline: { date: string; event: string }[]; estimated: number; actual: number }> = {
-  "1": { family: "Smith Family", address: "321 Elm St, Springfield", status: "In Progress", description: "Lead paint removal - kitchen and living room", hazards: [{ name: "Lead Paint", desc: "Peeling lead-based paint on kitchen walls and window frames" }, { name: "Lead Dust", desc: "Contaminated dust on living room surfaces" }], timeline: [{ date: "2026-03-05", event: "Lead assigned" }, { date: "2026-03-07", event: "Quote submitted" }, { date: "2026-03-10", event: "Work started" }], estimated: 2400, actual: 2100 },
-  "2": { family: "Brown Family", address: "654 Cedar Ln, Riverside", status: "Scheduled", description: "Asbestos abatement - basement ceiling tiles", hazards: [{ name: "Asbestos Tiles", desc: "Friable asbestos in basement ceiling tiles" }], timeline: [{ date: "2026-03-12", event: "Lead assigned" }, { date: "2026-03-15", event: "Quote submitted" }, { date: "2026-03-18", event: "Scheduled for Mar 22" }], estimated: 3100, actual: 0 },
-  "3": { family: "Davis Family", address: "987 Birch Dr, Lakeview", status: "Quoted", description: "Mold remediation - bathroom and crawl space", hazards: [{ name: "Black Mold", desc: "Extensive mold growth in bathroom ceiling" }, { name: "Crawl Space Mold", desc: "Moisture-related mold in crawl space" }], timeline: [{ date: "2026-03-16", event: "Lead assigned" }, { date: "2026-03-18", event: "Quote submitted" }], estimated: 1800, actual: 0 },
-  "4": { family: "Anderson Family", address: "357 Ash Blvd, Westfield", status: "In Progress", description: "Radon mitigation system installation", hazards: [{ name: "Radon Gas", desc: "Elevated radon levels measured at 8.2 pCi/L in basement" }], timeline: [{ date: "2026-03-02", event: "Lead assigned" }, { date: "2026-03-04", event: "Quote submitted" }, { date: "2026-03-08", event: "Work started" }], estimated: 1500, actual: 1350 },
+const stages: JobStage[] = ["Quoted", "Scheduled", "In Progress", "Completed"];
+const stageProgress: Record<JobStage, number> = { Quoted: 25, Scheduled: 50, "In Progress": 75, Completed: 100 };
+const stageVariant: Record<JobStage, "secondary" | "warning" | "default" | "success"> = {
+  Quoted: "secondary",
+  Scheduled: "warning",
+  "In Progress": "default",
+  Completed: "success",
 };
 
-export default function JobDetail() {
+export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const job = jobsData[id] ?? jobsData["1"];
-  const [status, setStatus] = useState(job.status);
-  const [notes, setNotes] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
+  const { addNotification } = useStore();
+  const [job, setJob] = useState<Job | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [advancing, setAdvancing] = useState(false);
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  useEffect(() => {
+    if (!id) return;
+    jobService.getById(id).then(({ data }) => {
+      setJob(data);
+      setLoading(false);
+    });
+  }, [id]);
 
-  const markComplete = () => { setStatus("Completed"); showToast("Job marked as complete!"); };
+  const advanceStage = async () => {
+    if (!job) return;
+    const idx = stages.indexOf(job.stage);
+    if (idx >= stages.length - 1) return;
+    const next = stages[idx + 1];
+    setAdvancing(true);
+    const { data, error } = await jobService.updateStage(job.id, next, stageProgress[next]);
+    if (!error && data) {
+      setJob(data);
+      addNotification({ title: "Job Updated", message: `Job moved to "${next}".`, type: "success" });
+    }
+    setAdvancing(false);
+  };
 
-  const statusVariant = { Quoted: "secondary", Scheduled: "warning", "In Progress": "default", Completed: "success" } as const;
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-gray-100" />)}
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!job) {
+    return (
+      <DashboardLayout>
+        <div className="py-20 text-center">
+          <p className="text-lg font-medium text-gray-700">Job not found</p>
+          <Link href="/dashboard/contractor/jobs">
+            <Button className="mt-4" variant="outline">Back to Jobs</Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const currentStageIdx = stages.indexOf(job.stage);
 
   return (
     <DashboardLayout>
-      {toast && (
-        <div className="fixed right-4 top-4 z-50 rounded-md bg-green-600 px-4 py-2 text-sm text-white shadow-lg">{toast}</div>
-      )}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{job.address}</h1>
-          <p className="mt-1 text-sm text-gray-500">{job.family} &middot; {job.description}</p>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <div className="mt-1 flex flex-wrap gap-3 text-sm text-gray-500">
+              {job.address && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" /> {job.address}
+                </span>
+              )}
+              {job.family_profile?.name && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3.5 w-3.5" /> {job.family_profile.name}
+                </span>
+              )}
+              {job.amount && (
+                <span className="flex items-center gap-1">
+                  <DollarSign className="h-3.5 w-3.5" /> ${job.amount.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <Badge variant={stageVariant[job.stage]} className="self-start text-sm px-3 py-1">{job.stage}</Badge>
         </div>
-        <Badge variant={statusVariant[status as keyof typeof statusVariant] ?? "default"}>{status}</Badge>
-      </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Stage Pipeline */}
+        <Card>
+          <CardHeader><CardTitle>Progress</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-1">
+              {stages.map((s, i) => (
+                <div key={s} className="flex flex-1 items-center">
+                  <div className={`flex h-8 flex-1 items-center justify-center rounded-md text-xs font-medium transition-colors ${
+                    i < currentStageIdx
+                      ? "bg-blue-600 text-white"
+                      : i === currentStageIdx
+                      ? "bg-blue-100 text-blue-700 ring-2 ring-blue-400"
+                      : "bg-gray-100 text-gray-400"
+                  }`}>{s}</div>
+                  {i < stages.length - 1 && (
+                    <ChevronRight className={`h-4 w-4 shrink-0 mx-0.5 ${i < currentStageIdx ? "text-blue-400" : "text-gray-300"}`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 h-2 w-full rounded-full bg-gray-100">
+              <div
+                className="h-2 rounded-full bg-blue-500 transition-all"
+                style={{ width: `${stageProgress[job.stage]}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Timeline */}
         <Card>
           <CardHeader><CardTitle>Timeline</CardTitle></CardHeader>
           <CardContent>
-            <ol className="relative border-l border-gray-200 pl-4">
-              {job.timeline.map((t, i) => (
-                <li key={i} className="mb-4 last:mb-0">
+            <ol className="relative border-l border-gray-200 pl-5 space-y-4">
+              <li>
+                <div className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-blue-600" />
+                <p className="text-sm font-medium text-gray-900">Job Created</p>
+                <p className="text-xs text-gray-400">{new Date(job.created_at).toLocaleDateString()}</p>
+              </li>
+              {job.stage !== "Quoted" && (
+                <li>
                   <div className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-blue-600" />
-                  <p className="text-sm font-medium text-gray-900">{t.event}</p>
-                  <p className="text-xs text-gray-500">{t.date}</p>
+                  <p className="text-sm font-medium text-gray-900">Scheduled</p>
                 </li>
-              ))}
-              {status === "Completed" && (
-                <li className="mb-0">
+              )}
+              {(job.stage === "In Progress" || job.stage === "Completed") && (
+                <li>
+                  <div className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-blue-600" />
+                  <p className="text-sm font-medium text-gray-900">Work Started</p>
+                </li>
+              )}
+              {job.stage === "Completed" && (
+                <li>
                   <div className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-green-600" />
                   <p className="text-sm font-medium text-green-700">Completed</p>
-                  <p className="text-xs text-gray-500">Today</p>
+                  {job.completed_at && (
+                    <p className="text-xs text-gray-400">{new Date(job.completed_at).toLocaleDateString()}</p>
+                  )}
                 </li>
               )}
             </ol>
           </CardContent>
         </Card>
 
+        {/* Photos placeholder */}
         <Card>
-          <CardHeader><CardTitle>Scope of Work</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {job.hazards.map((h) => (
-              <div key={h.name} className="rounded-md border p-3">
-                <p className="font-medium text-gray-900">{h.name}</p>
-                <p className="text-sm text-gray-500">{h.desc}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle>Photos</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Site Photos</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-3">
               {[1, 2, 3].map((n) => (
-                <div key={n} className="flex h-24 items-center justify-center rounded-md border-2 border-dashed border-gray-300 bg-gray-50 text-xs text-gray-400">
+                <div key={n} className="flex h-24 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
                   Photo {n}
                 </div>
               ))}
@@ -88,47 +181,12 @@ export default function JobDetail() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Cost Breakdown</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Estimated Cost</span>
-                <span className="font-medium">${job.estimated.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Actual Cost</span>
-                <span className="font-medium">{job.actual ? `$${job.actual.toLocaleString()}` : "TBD"}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between text-sm font-semibold">
-                <span>Variance</span>
-                <span className={job.actual ? (job.actual <= job.estimated ? "text-green-600" : "text-red-600") : "text-gray-400"}>
-                  {job.actual ? `$${(job.estimated - job.actual).toLocaleString()}` : "--"}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {job.stage !== "Completed" && (
+          <Button onClick={advanceStage} disabled={advancing} size="lg" className="w-full sm:w-auto">
+            {advancing ? "Updating..." : `Advance to ${stages[currentStageIdx + 1] ?? "Complete"}`}
+          </Button>
+        )}
       </div>
-
-      <Card className="mt-6">
-        <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
-        <CardContent>
-          <textarea
-            className="w-full rounded-md border border-gray-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            rows={4}
-            placeholder="Add notes about this job..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </CardContent>
-      </Card>
-
-      {status !== "Completed" && (
-        <div className="mt-6">
-          <Button onClick={markComplete}>Mark as Complete</Button>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

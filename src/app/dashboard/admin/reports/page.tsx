@@ -1,44 +1,67 @@
 "use client";
 
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useReports } from "@/lib/hooks/useReports";
 
-const kpis = [
-  { label: "Total Audits", value: "342" },
-  { label: "Avg Safety Score", value: "68" },
-  { label: "Avg Fixes Per Audit", value: "4.2" },
-  { label: "Contractor Conversion", value: "42%" },
-];
+function scoreColor(s: number) {
+  if (s >= 80) return "success";
+  if (s >= 50) return "warning";
+  return "destructive";
+}
 
-const monthlyAudits = [
-  { month: "Oct", count: 42 },
-  { month: "Nov", count: 55 },
-  { month: "Dec", count: 38 },
-  { month: "Jan", count: 61 },
-  { month: "Feb", count: 72 },
-  { month: "Mar", count: 74 },
-];
+// Simple bar chart from real data
+function MiniChart({ data }: { data: { label: string; count: number }[] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  return (
+    <div className="flex items-end gap-3 h-32">
+      {data.map((d) => (
+        <div key={d.label} className="flex flex-1 flex-col items-center gap-1">
+          <span className="text-xs font-medium text-gray-600">{d.count || ""}</span>
+          <div
+            className="w-full rounded-t bg-blue-500 transition-all min-h-[4px]"
+            style={{ height: `${(d.count / max) * 100}%` }}
+          />
+          <span className="text-xs text-gray-500">{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-const maxCount = Math.max(...monthlyAudits.map((m) => m.count));
+export default function AdminReportsPage() {
+  const { reports, loading } = useReports();
 
-const hazards = [
-  { type: "Trip Hazards", frequency: 128, avgRisk: 62 },
-  { type: "Inadequate Lighting", frequency: 97, avgRisk: 48 },
-  { type: "Missing Grab Bars", frequency: 85, avgRisk: 55 },
-  { type: "Faulty Wiring", frequency: 64, avgRisk: 82 },
-  { type: "Slippery Surfaces", frequency: 59, avgRisk: 58 },
-  { type: "Blocked Exits", frequency: 43, avgRisk: 88 },
-];
+  const avgScore = reports.length
+    ? Math.round(reports.reduce((s, r) => s + r.safety_score, 0) / reports.length)
+    : 0;
 
-const assessors = [
-  { name: "Mike Torres", audits: 87, rating: 4.8 },
-  { name: "Jane Liu", audits: 72, rating: 4.9 },
-  { name: "James Obi", audits: 65, rating: 4.6 },
-  { name: "Noah Wilson", audits: 58, rating: 4.7 },
-  { name: "Sarah Park", audits: 42, rating: 4.5 },
-];
+  // Monthly breakdown (last 6 months)
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return {
+      label: d.toLocaleString("en-US", { month: "short" }),
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      count: 0,
+    };
+  });
+  reports.forEach((r) => {
+    const key = r.created_at.slice(0, 7);
+    const m = months.find((m) => m.key === key);
+    if (m) m.count++;
+  });
 
-export default function ReportsPage() {
+  const kpis = [
+    { label: "Total Reports", value: loading ? "—" : reports.length },
+    { label: "Avg Safety Score", value: loading ? "—" : `${avgScore}/100` },
+    { label: "High Risk (<50)", value: loading ? "—" : reports.filter((r) => r.safety_score < 50).length },
+    { label: "This Month", value: loading ? "—" : months[5].count },
+  ];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -56,70 +79,61 @@ export default function ReportsPage() {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Audits Per Month</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Reports Per Month</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex items-end gap-4 h-48">
-              {monthlyAudits.map((m) => (
-                <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
-                  <span className="text-xs font-medium text-gray-600">{m.count}</span>
-                  <div
-                    className="w-full rounded-t bg-blue-500 transition-all"
-                    style={{ height: `${(m.count / maxCount) * 100}%` }}
-                  />
-                  <span className="text-xs text-gray-500">{m.month}</span>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="h-32 animate-pulse rounded bg-gray-100" />
+            ) : (
+              <MiniChart data={months.map((m) => ({ label: m.label, count: m.count }))} />
+            )}
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Top Hazards Found</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead><tr className="border-b text-left text-gray-500">
-                  <th className="pb-2 font-medium">Hazard Type</th>
-                  <th className="pb-2 font-medium">Frequency</th>
-                  <th className="pb-2 font-medium">Avg Risk</th>
-                </tr></thead>
-                <tbody>
-                  {hazards.map((h) => (
-                    <tr key={h.type} className="border-b last:border-0">
-                      <td className="py-2.5">{h.type}</td>
-                      <td className="py-2.5">{h.frequency}</td>
-                      <td className="py-2.5">
-                        <span className={h.avgRisk >= 75 ? "font-bold text-red-600" : h.avgRisk >= 50 ? "text-amber-600" : "text-green-600"}>{h.avgRisk}</span>
-                      </td>
+        <Card>
+          <CardHeader><CardTitle>All Reports</CardTitle></CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-3">
+                {[0,1,2,3].map((i) => <div key={i} className="h-12 animate-pulse rounded bg-gray-100" />)}
+              </div>
+            ) : reports.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">No reports yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-2 font-medium">Date</th>
+                      <th className="pb-2 font-medium">Address</th>
+                      <th className="pb-2 font-medium">Safety Score</th>
+                      <th className="pb-2 font-medium">Recommendations</th>
+                      <th className="pb-2 font-medium">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle>Top Performing Assessors</CardTitle></CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead><tr className="border-b text-left text-gray-500">
-                  <th className="pb-2 font-medium">Name</th>
-                  <th className="pb-2 font-medium">Audits</th>
-                  <th className="pb-2 font-medium">Avg Rating</th>
-                </tr></thead>
-                <tbody>
-                  {assessors.map((a) => (
-                    <tr key={a.name} className="border-b last:border-0">
-                      <td className="py-2.5 font-medium">{a.name}</td>
-                      <td className="py-2.5">{a.audits}</td>
-                      <td className="py-2.5 text-amber-500">{"★".repeat(Math.round(a.rating))} <span className="text-gray-600">{a.rating}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </div>
+                  </thead>
+                  <tbody>
+                    {reports.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-3 text-gray-500">{new Date(r.created_at).toLocaleDateString()}</td>
+                        <td className="py-3 font-medium text-gray-900">
+                          {r.audit?.property?.street ?? "—"}, {r.audit?.property?.city ?? ""}
+                        </td>
+                        <td className="py-3">
+                          <Badge variant={scoreColor(r.safety_score)}>{r.safety_score}/100</Badge>
+                        </td>
+                        <td className="py-3 text-gray-500">{r.recommendations?.length ?? 0}</td>
+                        <td className="py-3">
+                          <Link href={`/dashboard/family/reports/${r.id}`}>
+                            <Button size="sm" variant="ghost">View</Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

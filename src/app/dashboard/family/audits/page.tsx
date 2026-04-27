@@ -1,52 +1,51 @@
 "use client";
 
+import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAudits } from "@/lib/hooks/useAudits";
 import Link from "next/link";
+import { Calendar, MapPin, Clock, Package, FileText } from "lucide-react";
+import type { Audit, AuditStatus } from "@/lib/types";
 
-interface Audit {
-  id: string;
-  date: string;
-  address: string;
-  assessor: string;
-  status: "scheduled" | "in-progress" | "completed";
-  hazards: number;
-}
-
-const audits: Audit[] = [
-  { id: "rpt-1", date: "Apr 5, 2026", address: "42 Oak Lane, Austin TX", assessor: "James Carter", status: "scheduled", hazards: 0 },
-  { id: "rpt-2", date: "Mar 12, 2026", address: "42 Oak Lane, Austin TX", assessor: "Maria Gonzalez", status: "in-progress", hazards: 3 },
-  { id: "rpt-3", date: "Feb 18, 2026", address: "42 Oak Lane, Austin TX", assessor: "James Carter", status: "completed", hazards: 7 },
-  { id: "rpt-4", date: "Jan 8, 2026", address: "15 Maple Dr, Austin TX", assessor: "Linda Pham", status: "completed", hazards: 4 },
-  { id: "rpt-5", date: "Nov 22, 2025", address: "42 Oak Lane, Austin TX", assessor: "Maria Gonzalez", status: "completed", hazards: 9 },
-];
-
-const statusBadge: Record<string, { label: string; variant: "default" | "warning" | "success" }> = {
+const statusConfig: Record<AuditStatus, { label: string; variant: "default" | "warning" | "success" | "destructive" }> = {
   scheduled: { label: "Scheduled", variant: "default" },
-  "in-progress": { label: "In Progress", variant: "warning" },
+  in_progress: { label: "In Progress", variant: "warning" },
   completed: { label: "Completed", variant: "success" },
+  cancelled: { label: "Cancelled", variant: "destructive" },
 };
 
 function AuditCard({ audit }: { audit: Audit }) {
-  const s = statusBadge[audit.status];
+  const s = statusConfig[audit.status];
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <p className="font-semibold text-gray-900">{audit.address}</p>
-          <p className="text-sm text-gray-500">{audit.date} &middot; Assessor: {audit.assessor}</p>
-          {audit.hazards > 0 && (
-            <p className="text-sm text-red-600">{audit.hazards} hazard{audit.hazards > 1 ? "s" : ""} found</p>
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-gray-400" />
+            <p className="font-semibold text-gray-900">{audit.property?.street ?? "Property"}, {audit.property?.city}</p>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{audit.scheduled_date ?? "Date TBD"}</span>
+            {audit.scheduled_time && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{audit.scheduled_time}</span>}
+            <span className="flex items-center gap-1"><Package className="h-3 w-3" />{audit.package}</span>
+          </div>
+          {audit.safety_score !== null && (
+            <p className={`text-sm font-semibold ${audit.safety_score > 80 ? "text-green-600" : audit.safety_score >= 50 ? "text-amber-500" : "text-red-500"}`}>
+              Safety Score: {audit.safety_score}/100
+            </p>
           )}
         </div>
         <div className="flex items-center gap-3">
           <Badge variant={s.variant}>{s.label}</Badge>
           {audit.status === "completed" && (
             <Link href={`/dashboard/family/reports/${audit.id}`}>
-              <Button size="sm" variant="outline">View Report</Button>
+              <Button size="sm" variant="outline" className="gap-1">
+                <FileText className="h-3.5 w-3.5" /> Report
+              </Button>
             </Link>
           )}
         </div>
@@ -55,39 +54,40 @@ function AuditCard({ audit }: { audit: Audit }) {
   );
 }
 
-function filterAudits(tab: string) {
-  if (tab === "all") return audits;
-  return audits.filter((a) => a.status === tab);
-}
-
 export default function AuditsPage() {
+  const { audits, loading } = useAudits();
+  const [tab, setTab] = useState("all");
+
+  const filtered = tab === "all" ? audits : audits.filter((a) => a.status === tab || a.status === tab.replace("-", "_"));
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">My Audits</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Audits</h1>
+            <p className="text-gray-500">Track all your home safety assessments.</p>
+          </div>
           <Link href="/book"><Button>Book New Audit</Button></Link>
         </div>
 
-        <Tabs defaultValue="all">
+        <Tabs defaultValue="all" onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="all">All ({audits.length})</TabsTrigger>
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="in-progress">In Progress</TabsTrigger>
+            <TabsTrigger value="in_progress">In Progress</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
 
-          {["all", "scheduled", "in-progress", "completed"].map((tab) => (
-            <TabsContent key={tab} value={tab}>
-              <div className="space-y-3">
-                {filterAudits(tab).length === 0 ? (
-                  <p className="py-8 text-center text-gray-400">No audits in this category.</p>
-                ) : (
-                  filterAudits(tab).map((a) => <AuditCard key={a.id} audit={a} />)
-                )}
-              </div>
-            </TabsContent>
-          ))}
+          <TabsContent value={tab} className="mt-4">
+            {loading ? (
+              <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-100" />)}</div>
+            ) : filtered.length === 0 ? (
+              <div className="py-12 text-center text-gray-400">No audits in this category.</div>
+            ) : (
+              <div className="space-y-3">{filtered.map((a) => <AuditCard key={a.id} audit={a} />)}</div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>

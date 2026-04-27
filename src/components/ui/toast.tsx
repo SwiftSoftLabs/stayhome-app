@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { X, CheckCircle, AlertTriangle, Info, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStore, type Notification } from "@/lib/store";
+import { useStore } from "@/lib/store";
+import type { AppNotification as Notification } from "@/lib/types";
 
 const styles: Record<Notification["type"], string> = {
   success: "border-green-500 bg-green-50 text-green-800",

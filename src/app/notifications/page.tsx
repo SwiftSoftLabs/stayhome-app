@@ -1,34 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useStore, type Notification } from "@/lib/store";
-
-const mockNotifications: Omit<Notification, "id" | "read" | "createdAt">[] = [
-  { title: "Audit Completed", message: "Audit #A-1042 for 123 Oak St has been completed by Mike Torres.", type: "success" },
-  { title: "New User Signup", message: "Sarah Chen has registered as a Family member.", type: "info" },
-  { title: "Payment Received", message: "Payment of $1,200 received from Chen Family.", type: "success" },
-  { title: "Audit Flagged", message: "Audit #A-1040 has been flagged for critical safety issues.", type: "warning" },
-  { title: "Contractor Joined", message: "BuildRight Inc. has joined the contractor network.", type: "info" },
-  { title: "Payout Pending", message: "Assessor payout of $850 for Mike Torres is pending.", type: "warning" },
-  { title: "System Update", message: "Platform maintenance scheduled for March 25th.", type: "info" },
-  { title: "Review Required", message: "Audit #A-1039 is awaiting admin review.", type: "warning" },
-];
+import { useNotifications } from "@/lib/hooks/useNotifications";
+import { Bell } from "lucide-react";
 
 const typeIcons: Record<string, string> = {
-  info: "ℹ️",
-  success: "✅",
-  warning: "⚠️",
-  error: "❌",
+  info: "ℹ️", success: "✅", warning: "⚠️", error: "❌",
 };
-
 const typeBg: Record<string, string> = {
-  info: "bg-blue-50",
-  success: "bg-green-50",
-  warning: "bg-amber-50",
-  error: "bg-red-50",
+  info: "bg-blue-50", success: "bg-green-50", warning: "bg-amber-50", error: "bg-red-50",
 };
 
 function getGroup(dateStr: string): string {
@@ -43,8 +26,7 @@ function getGroup(dateStr: string): string {
 
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
@@ -54,21 +36,12 @@ function formatTime(dateStr: string): string {
 }
 
 export default function NotificationsPage() {
-  const { notifications, addNotification, markNotificationRead, markAllRead } = useStore();
-  const seeded = useRef(false);
-
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    // Stagger mock notifications with different timestamps
-    mockNotifications.forEach((n, i) => {
-      setTimeout(() => addNotification(n), i * 50);
-    });
-  }, [addNotification]);
+  const { notifications } = useStore();
+  const { markRead, markAll } = useNotifications();
 
   const grouped: Record<string, Notification[]> = {};
   for (const n of notifications) {
-    const g = getGroup(n.createdAt);
+    const g = getGroup(n.created_at);
     if (!grouped[g]) grouped[g] = [];
     grouped[g].push(n);
   }
@@ -85,32 +58,32 @@ export default function NotificationsPage() {
             {unreadCount > 0 && <p className="text-sm text-gray-500">{unreadCount} unread</p>}
           </div>
           {unreadCount > 0 && (
-            <Button variant="outline" onClick={markAllRead}>Mark All as Read</Button>
+            <Button variant="outline" onClick={markAll}>Mark All as Read</Button>
           )}
         </div>
 
         {notifications.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <span className="text-4xl">🔔</span>
-              <p className="mt-3 text-lg font-medium text-gray-700">No notifications</p>
-              <p className="text-sm text-gray-400">You're all caught up!</p>
+            <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+              <Bell className="h-12 w-12 text-gray-300" />
+              <p className="text-lg font-medium text-gray-700">No notifications</p>
+              <p className="text-sm text-gray-400">You&apos;re all caught up!</p>
             </CardContent>
           </Card>
         ) : (
           groupOrder.map((group) =>
             grouped[group]?.length ? (
               <div key={group}>
-                <h2 className="mb-2 text-sm font-semibold text-gray-500">{group}</h2>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400">{group}</h2>
                 <div className="space-y-2">
                   {grouped[group].map((n) => (
                     <Card
                       key={n.id}
-                      className={`cursor-pointer transition-colors hover:bg-gray-50 ${!n.read ? "border-l-4 border-l-blue-500" : ""}`}
-                      onClick={() => !n.read && markNotificationRead(n.id)}
+                      className={`cursor-pointer transition-all hover:shadow-sm ${!n.read ? "border-l-4 border-l-blue-500 bg-blue-50/30" : ""}`}
+                      onClick={() => !n.read && markRead(n.id)}
                     >
                       <CardContent className="flex items-start gap-3 p-4">
-                        <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm ${typeBg[n.type]}`}>
+                        <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${typeBg[n.type]}`}>
                           {typeIcons[n.type]}
                         </span>
                         <div className="flex-1 min-w-0">
@@ -118,8 +91,8 @@ export default function NotificationsPage() {
                             <p className={`text-sm ${!n.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}>{n.title}</p>
                             {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
                           </div>
-                          <p className="text-sm text-gray-500">{n.message}</p>
-                          <p className="mt-1 text-xs text-gray-400">{formatTime(n.createdAt)}</p>
+                          <p className="text-sm text-gray-500 mt-0.5">{n.message}</p>
+                          <p className="mt-1 text-xs text-gray-400">{formatTime(n.created_at)}</p>
                         </div>
                       </CardContent>
                     </Card>

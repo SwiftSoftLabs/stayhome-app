@@ -1,0 +1,41 @@
+name: SwiftSoftLabs Infrastructure Validator
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Ensure Manifest Exists
+        run: |
+          if [ ! -f "SWIFT_LABS_MANIFEST.md" ]; then
+            echo "❌ CRITICAL ERROR: SWIFT_LABS_MANIFEST.md is missing from the root directory."
+            echo "All SwiftSoftLabs projects must include the infrastructure manifest to guide AI agents."
+            exit 1
+          else
+            echo "✅ SWIFT_LABS_MANIFEST.md found."
+          fi
+
+      - name: Verify .env.local.example exists
+        run: |
+          if [ ! -f ".env.local.example" ] && [ ! -f ".env.example" ]; then
+            echo "⚠️ WARNING: No environment template (.env.local.example) found."
+            echo "Ensure project keys are documented for the shared SwiftSoftLabs cluster."
+          else
+            echo "✅ Environment template found."
+          fi
+
+      - name: Check for Leaked Secrets
+        run: |
+          # Basic regex check to ensure no hardcoded 'anon_key' or 'service_role' looks leaked in the codebase
+          if grep -rE "sb_[a-zA-Z0-9]{20,}" . --exclude-dir=.git --exclude=SWIFT_LABS_MANIFEST.md; then
+            echo "❌ ERROR: Potential leaked API keys found in the codebase!"
+            exit 1
+          else
+            echo "✅ No obvious leaked keys detected."
+          fi

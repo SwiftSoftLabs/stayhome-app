@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,171 +11,225 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { auditService } from "@/lib/services/audit.service";
+import { useStore } from "@/lib/store";
+import type { Audit, AuditFinding } from "@/lib/types";
+import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 
-const rooms = ["Bathroom", "Kitchen", "Hallway", "Bedroom", "Stairs", "Living Room", "Exterior"];
-const categories = ["Tripping", "Lighting", "Grab Bar", "Electrical", "Stairs"];
-const checklistItems = ["Photos taken", "Measurements recorded", "Hazards documented", "Occupant interviewed", "Room sketch completed"];
+const ROOMS = ["Bathroom", "Kitchen", "Hallway", "Bedroom", "Stairs", "Living Room", "Exterior"];
+const SEVERITIES = ["low", "medium", "high", "critical"] as const;
+const severityVariant = {
+  critical: "destructive",
+  high: "destructive",
+  medium: "warning",
+  low: "secondary",
+} as const;
 
-interface Hazard {
-  id: string;
-  description: string;
-  riskScore: number;
-  category: string;
-  estimatedCost: string;
-  notes: string;
-}
+function AuditToolInner() {
+  const searchParams = useSearchParams();
+  const auditId = searchParams.get("audit") ?? "";
+  const { addNotification } = useStore();
 
-type RoomData = Record<string, { hazards: Hazard[]; checklist: Record<string, boolean> }>;
-
-function initRoomData(): RoomData {
-  const data: RoomData = {};
-  rooms.forEach((r) => {
-    data[r] = { hazards: [], checklist: {} };
-    checklistItems.forEach((c) => { data[r].checklist[c] = false; });
+  const [audit, setAudit] = useState<Audit | null>(null);
+  const [findings, setFindings] = useState<AuditFinding[]>([]);
+  const [activeRoom, setActiveRoom] = useState(ROOMS[0]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState({
+    finding: "",
+    severity: "medium" as AuditFinding["severity"],
   });
-  return data;
-}
+  const [saving, setSaving] = useState(false);
+  const [checklist, setChecklist] = useState<Record<string, Record<string, boolean>>>(() => {
+    const d: Record<string, Record<string, boolean>> = {};
+    ROOMS.forEach((r) => {
+      d[r] = {
+        "Photos taken": false,
+        "Measurements recorded": false,
+        "Hazards documented": false,
+        "Occupant interviewed": false,
+      };
+    });
+    return d;
+  });
 
-export default function AuditToolPage() {
-  const [roomData, setRoomData] = useState<RoomData>(initRoomData);
-  const [notification, setNotification] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Omit<Hazard, "id">>({ description: "", riskScore: 5, category: "Tripping", estimatedCost: "", notes: "" });
+  useEffect(() => {
+    if (!auditId) { setLoading(false); return; }
+    Promise.all([
+      auditService.getById(auditId),
+      auditService.getFindingsByAudit(auditId),
+    ]).then(([{ data: a }, { data: f }]) => {
+      setAudit(a);
+      setFindings(f ?? []);
+      setLoading(false);
+    });
+  }, [auditId]);
 
-  const showNotification = (msg: string) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
-
-  const addHazard = (room: string) => {
-    if (!draft.description) return;
-    const h: Hazard = { ...draft, id: crypto.randomUUID() };
-    setRoomData((prev) => ({ ...prev, [room]: { ...prev[room], hazards: [...prev[room].hazards, h] } }));
-    setDraft({ description: "", riskScore: 5, category: "Tripping", estimatedCost: "", notes: "" });
-    showNotification("Hazard added successfully");
+  const addFinding = async () => {
+    if (!draft.finding || !auditId) return;
+    setSaving(true);
+    const { data } = await auditService.addFinding({
+      audit_id: auditId,
+      room: activeRoom,
+      finding: draft.finding,
+      severity: draft.severity,
+      resolved: false,
+    });
+    if (data) {
+      setFindings((prev) => [...prev, data]);
+      setDraft((p) => ({ ...p, finding: "" }));
+      addNotification({ title: "Finding Added", message: `${draft.severity} finding logged for ${activeRoom}.`, type: "success" });
+    }
+    setSaving(false);
   };
 
-  const deleteHazard = (room: string, id: string) => {
-    setRoomData((prev) => ({ ...prev, [room]: { ...prev[room], hazards: prev[room].hazards.filter((h) => h.id !== id) } }));
-  };
-
-  const updateHazard = (room: string, id: string, updates: Partial<Hazard>) => {
-    setRoomData((prev) => ({
-      ...prev,
-      [room]: { ...prev[room], hazards: prev[room].hazards.map((h) => (h.id === id ? { ...h, ...updates } : h)) },
-    }));
+  const resolveFinding = async (id: string) => {
+    const { data } = await auditService.resolveFinding(id);
+    if (data) setFindings((prev) => prev.map((f) => f.id === id ? data : f));
   };
 
   const toggleCheck = (room: string, item: string) => {
-    setRoomData((prev) => ({
+    setChecklist((prev) => ({
       ...prev,
-      [room]: { ...prev[room], checklist: { ...prev[room].checklist, [item]: !prev[room].checklist[item] } },
+      [room]: { ...prev[room], [item]: !prev[room][item] },
     }));
   };
 
-  const totalHazards = Object.values(roomData).reduce((sum, r) => sum + r.hazards.length, 0);
+  const roomFindings = (room: string) => findings.filter((f) => f.room === room);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-gray-100" />)}
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!auditId) {
+    return (
+      <DashboardLayout>
+        <div className="py-20 text-center">
+          <p className="text-lg font-medium text-gray-700">No audit selected.</p>
+          <Link href="/dashboard/assessor/schedule">
+            <Button className="mt-4" variant="outline">Go to Schedule</Button>
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {notification && (
-          <div className="fixed right-4 top-4 z-50 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
-            {notification}
-          </div>
-        )}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Audit Tool</h1>
-          <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
-            <span><strong>Address:</strong> 142 Oak Lane, Springfield</span>
-            <span><strong>Family:</strong> Johnson Family</span>
-            <span><strong>Date:</strong> March 20, 2026</span>
-          </div>
+          {audit && (
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500">
+              <span><strong>Family:</strong> {audit.family_profile?.name ?? "—"}</span>
+              <span><strong>Address:</strong> {audit.property?.street ?? "—"}</span>
+              <span><strong>Date:</strong> {audit.scheduled_date ?? "—"}</span>
+              <span><strong>Package:</strong> {audit.package}</span>
+            </div>
+          )}
         </div>
 
-        <Tabs defaultValue="Bathroom">
+        <Tabs value={activeRoom} onValueChange={setActiveRoom}>
           <TabsList className="flex-wrap">
-            {rooms.map((r) => (
-              <TabsTrigger key={r} value={r}>
-                {r} {roomData[r].hazards.length > 0 && <Badge variant="destructive" className="ml-1">{roomData[r].hazards.length}</Badge>}
-              </TabsTrigger>
-            ))}
+            {ROOMS.map((r) => {
+              const rf = roomFindings(r);
+              return (
+                <TabsTrigger key={r} value={r} className="gap-1">
+                  {r}
+                  {rf.length > 0 && (
+                    <Badge variant="destructive" className="ml-1 h-4 w-4 p-0 text-xs justify-center">
+                      {rf.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          {rooms.map((room) => (
+          {ROOMS.map((room) => (
             <TabsContent key={room} value={room}>
-              <div className="space-y-4">
+              <div className="space-y-4 mt-4">
+                {/* Add Finding */}
                 <Card>
-                  <CardHeader><CardTitle>Photo Upload</CardTitle></CardHeader>
-                  <CardContent>
-                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 transition hover:border-blue-400 hover:bg-blue-50">
-                      <svg className="mb-2 h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                      <span className="text-sm text-gray-500">Drag and drop photos or click to browse</span>
-                      <input type="file" multiple accept="image/*" className="hidden" />
-                    </label>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Hazards ({roomData[room].hazards.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {roomData[room].hazards.map((h) => (
-                      <div key={h.id} className="rounded-lg border border-gray-200 p-3">
-                        {editingId === h.id ? (
-                          <div className="space-y-2">
-                            <Input value={h.description} onChange={(e) => updateHazard(room, h.id, { description: e.target.value })} label="Description" />
-                            <div className="grid grid-cols-2 gap-2">
-                              <Select label="Risk" value={String(h.riskScore)} onChange={(e) => updateHazard(room, h.id, { riskScore: Number(e.target.value) })}>
-                                {Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
-                              </Select>
-                              <Select label="Category" value={h.category} onChange={(e) => updateHazard(room, h.id, { category: e.target.value })}>
-                                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                              </Select>
-                            </div>
-                            <Button size="sm" onClick={() => setEditingId(null)}>Done</Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900">{h.description}</p>
-                              <div className="mt-1 flex flex-wrap gap-2">
-                                <Badge variant={h.riskScore >= 7 ? "destructive" : h.riskScore >= 4 ? "warning" : "success"}>Risk: {h.riskScore}/10</Badge>
-                                <Badge variant="secondary">{h.category}</Badge>
-                                {h.estimatedCost && <Badge variant="outline">${h.estimatedCost}</Badge>}
-                              </div>
-                              {h.notes && <p className="mt-1 text-xs text-gray-500">{h.notes}</p>}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => setEditingId(h.id)}>Edit</Button>
-                              <Button size="sm" variant="ghost" className="text-red-600" onClick={() => deleteHazard(room, h.id)}>Delete</Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    <div className="rounded-lg border-2 border-dashed border-gray-200 p-4 space-y-3">
-                      <p className="text-sm font-medium text-gray-700">Add Hazard</p>
-                      <Input label="Description" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Describe the hazard..." />
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <Select label="Risk Score" value={String(draft.riskScore)} onChange={(e) => setDraft({ ...draft, riskScore: Number(e.target.value) })}>
-                          {Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
-                        </Select>
-                        <Select label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
-                          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </Select>
-                        <Input label="Est. Cost ($)" value={draft.estimatedCost} onChange={(e) => setDraft({ ...draft, estimatedCost: e.target.value })} placeholder="0.00" />
-                      </div>
-                      <Textarea label="Notes" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Additional notes..." />
-                      <Button onClick={() => addHazard(room)}>Add Hazard</Button>
+                  <CardHeader><CardTitle>Add Finding — {room}</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <Input
+                        placeholder="Describe the hazard..."
+                        value={draft.finding}
+                        onChange={(e) => setDraft((p) => ({ ...p, finding: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && addFinding()}
+                        className="sm:col-span-2"
+                      />
+                      <Select
+                        value={draft.severity}
+                        onChange={(e) => setDraft((p) => ({ ...p, severity: e.target.value as AuditFinding["severity"] }))}
+                      >
+                        {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </Select>
                     </div>
+                    <Button
+                      size="sm"
+                      onClick={addFinding}
+                      disabled={saving || !draft.finding}
+                      className="gap-1"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {saving ? "Adding..." : "Add Finding"}
+                    </Button>
                   </CardContent>
                 </Card>
 
+                {/* Findings List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Findings ({roomFindings(room).length})</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {roomFindings(room).length === 0 ? (
+                      <p className="py-4 text-center text-sm text-gray-400">No findings for this room.</p>
+                    ) : (
+                      roomFindings(room).map((f) => (
+                        <div key={f.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                          <div className="flex items-center gap-3">
+                            <Badge variant={severityVariant[f.severity]}>{f.severity}</Badge>
+                            <span className={`text-sm ${f.resolved ? "line-through text-gray-400" : "text-gray-800"}`}>
+                              {f.finding}
+                            </span>
+                            {f.resolved && <Badge variant="success">Resolved</Badge>}
+                          </div>
+                          {!f.resolved && (
+                            <button
+                              onClick={() => resolveFinding(f.id)}
+                              className="text-gray-400 hover:text-green-500 transition-colors"
+                              title="Mark resolved"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Checklist */}
                 <Card>
                   <CardHeader><CardTitle>Room Checklist</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
-                    {checklistItems.map((item) => (
+                  <CardContent className="space-y-1">
+                    {Object.entries(checklist[room]).map(([item, checked]) => (
                       <label key={item} className="flex cursor-pointer items-center gap-3 rounded-md p-2 hover:bg-gray-50">
-                        <input type="checkbox" checked={roomData[room].checklist[item]} onChange={() => toggleCheck(room, item)} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCheck(room, item)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
                         <span className="text-sm text-gray-700">{item}</span>
                       </label>
                     ))}
@@ -184,13 +240,33 @@ export default function AuditToolPage() {
           ))}
         </Tabs>
 
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => showNotification("Progress saved")}>Save &amp; Continue</Button>
-          <Button onClick={() => { if (totalHazards > 0) showNotification("Report generated successfully!"); else showNotification("Add at least one hazard before generating a report."); }}>
-            Generate Report
-          </Button>
+        {/* Summary Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <div className="flex gap-4 text-sm">
+            <span className="font-medium text-gray-700">Total findings: <strong>{findings.length}</strong></span>
+            <span className="text-red-600 font-medium">
+              Critical/High: <strong>{findings.filter((f) => f.severity === "critical" || f.severity === "high").length}</strong>
+            </span>
+          </div>
+          <Link href={`/dashboard/assessor/report-builder?audit=${auditId}`}>
+            <Button>Go to Report Builder</Button>
+          </Link>
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function AuditToolPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-gray-100" />)}
+        </div>
+      </DashboardLayout>
+    }>
+      <AuditToolInner />
+    </Suspense>
   );
 }

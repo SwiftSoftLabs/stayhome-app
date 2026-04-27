@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
+import { profileService } from "@/lib/services/profile.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Shield, CheckCircle, ArrowRight, ArrowLeft } from "lucide-react";
 
 const TOTAL_STEPS = 3;
 
-function getDashboardPath(role: string): string {
+function dashboardPath(role: string) {
   switch (role) {
     case "assessor": return "/dashboard/assessor";
     case "contractor": return "/dashboard/contractor";
@@ -21,58 +22,78 @@ function getDashboardPath(role: string): string {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { currentUser } = useStore();
+  const { currentUser, _setUser } = useStore();
   const [step, setStep] = useState(1);
-  const [profile, setProfile] = useState({ phone: "", address: "", city: "", state: "", license: "", specialization: "", businessName: "", serviceArea: "" });
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState({
+    phone: "", address: "", city: "", state: "",
+    license_number: "", specialization: "",
+    business_name: "", service_area: "",
+  });
 
   const role = currentUser?.role ?? "family";
-
   const update = (field: string, value: string) => setProfile((p) => ({ ...p, [field]: value }));
 
-  const handleFinish = () => {
-    router.push(getDashboardPath(role));
+  const handleFinish = async () => {
+    if (!currentUser) return;
+    setSaving(true);
+    await profileService.upsert({
+      id: currentUser.id,
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role as "family" | "assessor" | "contractor" | "admin",
+      onboarded: true,
+      ...profile,
+    });
+    _setUser({ ...currentUser, onboarded: true });
+    setSaving(false);
+    router.push(dashboardPath(role));
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-gray-50 px-4 py-12">
+    <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-12">
       <div className="flex items-center gap-2 font-bold text-blue-600">
-        <Shield className="h-7 w-7" />
-        <span className="text-xl">StayHome</span>
+        <Shield className="h-8 w-8" />
+        <span className="text-2xl">StayHome</span>
       </div>
 
-      {/* Progress */}
-      <div className="mt-8 flex items-center gap-2">
+      {/* Step indicators */}
+      <div className="mt-10 flex items-center gap-3">
         {Array.from({ length: TOTAL_STEPS }, (_, i) => {
           const s = i + 1;
           const done = s < step;
           const active = s === step;
           return (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                done ? "bg-green-500 text-white" : active ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"
+            <div key={s} className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-all ${
+                done ? "bg-green-500 text-white shadow-md" : active ? "bg-blue-600 text-white shadow-md ring-4 ring-blue-200" : "bg-gray-200 text-gray-400"
               }`}>
-                {done ? <CheckCircle className="h-4 w-4" /> : s}
+                {done ? <CheckCircle className="h-5 w-5" /> : s}
               </div>
-              {s < TOTAL_STEPS && <div className={`h-0.5 w-12 ${s < step ? "bg-green-500" : "bg-gray-200"}`} />}
+              {s < TOTAL_STEPS && (
+                <div className={`h-0.5 w-14 transition-all ${s < step ? "bg-green-400" : "bg-gray-200"}`} />
+              )}
             </div>
           );
         })}
       </div>
 
-      <Card className="mt-8 w-full max-w-lg">
-        <CardContent className="p-6">
+      <Card className="mt-8 w-full max-w-lg shadow-xl">
+        <CardContent className="p-8">
           {step === 1 && (
             <div className="space-y-4">
-              <h2 className="text-xl font-bold text-gray-900">Welcome to StayHome{currentUser ? `, ${currentUser.name}` : ""}!</h2>
-              <p className="text-gray-600">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Welcome to StayHome{currentUser ? `, ${currentUser.name.split(" ")[0]}` : ""}!
+              </h2>
+              <p className="text-gray-600 leading-relaxed">
                 {role === "family" && "We'll help you set up your home safety profile so we can protect your loved ones."}
                 {role === "assessor" && "Let's get your assessor profile ready so you can start conducting safety audits."}
                 {role === "contractor" && "Set up your business profile to start receiving home modification leads."}
                 {role === "admin" && "Welcome, admin. Let's confirm your profile details."}
               </p>
-              <div className="rounded-lg bg-blue-50 p-4">
-                <p className="text-sm font-medium text-blue-800">Your role: <span className="capitalize">{role}</span></p>
-                <p className="mt-1 text-sm text-blue-600">{currentUser?.email ?? "No email set"}</p>
+              <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-5">
+                <p className="text-sm font-semibold text-blue-900 capitalize">Role: {role}</p>
+                <p className="mt-1 text-sm text-blue-700">{currentUser?.email}</p>
               </div>
             </div>
           )}
@@ -81,7 +102,6 @@ export default function OnboardingPage() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Profile Details</h2>
               <Input label="Phone Number" type="tel" placeholder="(555) 123-4567" value={profile.phone} onChange={(e) => update("phone", e.target.value)} />
-
               {(role === "family" || role === "admin") && (
                 <>
                   <Input label="Street Address" placeholder="123 Main St" value={profile.address} onChange={(e) => update("address", e.target.value)} />
@@ -91,47 +111,46 @@ export default function OnboardingPage() {
                   </div>
                 </>
               )}
-
               {role === "assessor" && (
                 <>
-                  <Input label="License Number" placeholder="ASR-12345" value={profile.license} onChange={(e) => update("license", e.target.value)} />
+                  <Input label="License Number" placeholder="ASR-12345" value={profile.license_number} onChange={(e) => update("license_number", e.target.value)} />
                   <Input label="Specialization" placeholder="e.g. Fall Prevention, Accessibility" value={profile.specialization} onChange={(e) => update("specialization", e.target.value)} />
                 </>
               )}
-
               {role === "contractor" && (
                 <>
-                  <Input label="Business Name" placeholder="Safe Homes LLC" value={profile.businessName} onChange={(e) => update("businessName", e.target.value)} />
-                  <Input label="Service Area" placeholder="e.g. Greater Chicago Area" value={profile.serviceArea} onChange={(e) => update("serviceArea", e.target.value)} />
+                  <Input label="Business Name" placeholder="Safe Homes LLC" value={profile.business_name} onChange={(e) => update("business_name", e.target.value)} />
+                  <Input label="Service Area" placeholder="e.g. Greater Chicago Area" value={profile.service_area} onChange={(e) => update("service_area", e.target.value)} />
                 </>
               )}
             </div>
           )}
 
           {step === 3 && (
-            <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 ring-8 ring-green-50">
+                <CheckCircle className="h-10 w-10 text-green-500" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900">You&apos;re All Set!</h2>
-              <p className="text-gray-600">Your profile is ready. Head to your dashboard to get started.</p>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">You&apos;re All Set!</h2>
+                <p className="mt-2 text-gray-600">Your profile is complete. Head to your dashboard to get started.</p>
+              </div>
             </div>
           )}
 
-          {/* Navigation */}
           <div className="mt-8 flex items-center justify-between">
             {step > 1 ? (
               <Button variant="outline" onClick={() => setStep(step - 1)}>
-                <ArrowLeft className="mr-2 h-4 w-4" /> Previous
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
             ) : <div />}
             {step < TOTAL_STEPS ? (
               <Button onClick={() => setStep(step + 1)}>
-                Next <ArrowRight className="ml-2 h-4 w-4" />
+                Continue <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleFinish}>
-                Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={handleFinish} disabled={saving}>
+                {saving ? "Saving..." : "Go to Dashboard"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
           </div>
