@@ -103,6 +103,15 @@ export async function loginWithEmail(email: string, password: string) {
     throw new AuthHttpError('Please verify your email before signing in.', 403);
   }
 
+  if (user.two_factor_enabled) {
+    const { signMfaPendingToken } = await import('./tokens');
+    const { setMfaPendingCookie } = await import('./cookies');
+    const mfaToken = await signMfaPendingToken(user.id);
+    await setMfaPendingCookie(mfaToken);
+    await logAudit(user.id, 'login_mfa_pending', { email: user.email });
+    return { mfaRequired: true as const, user: toAuthUser(user) };
+  }
+
   return issueSessionCookies(user);
 }
 
@@ -270,4 +279,145 @@ export async function resetPassword(email: string, code: string, newPassword: st
   await logAudit(row.user_id, 'password_reset');
 
   return { message: 'Password updated successfully.' };
+}
+
+
+export async function verifyUserPassword(userId: string, password: string): Promise<boolean> {
+  const user = await getUserById(userId);
+  if (!user) return false;
+  return verifyPassword(password, user.password_hash);
+}
+
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const valid = await verifyUserPassword(userId, currentPassword);
+  if (!valid) throw new AuthHttpError('Current password is incorrect.', 401);
+  const passwordHash = await hashPassword(newPassword);
+  await query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [passwordHash, userId]);
+  await query(`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1`, [userId]);
+  await logAudit(userId, 'password_change');
+  return { message: 'Password updated.' };
+}
+
+export async function completeMfaLogin(userId: string, code: string) {
+  const { verifyLoginSecondFactor } = await import('./webauthn');
+  const user = await getUserById(userId);
+  if (!user) throw new AuthHttpError('User not found.', 404);
+  await verifyLoginSecondFactor(userId, user.email, code);
+  const { clearMfaPendingFromCookies } = await import('./cookies');
+  await clearMfaPendingFromCookies();
+  await logAudit(userId, 'login_mfa');
+  return issueSessionCookies(user);
+}
+
+export async function issueSessionForUser(user: DbUser) {
+  return issueSessionCookies(user);
+}
+
+
+export async function findOrCreateOAuthUser(input: {
+  provider: 'google';
+  providerUserId: string;
+  email: string;
+  emailVerified: boolean;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+}) {
+  if (!input.emailVerified) {
+    throw new AuthHttpError('Google account email must be verified.', 403);
+  }
+
+  const linked = await queryOne<{ user_id: string }>(
+    `SELECT user_id FROM auth_oauth_accounts WHERE provider = $1 AND provider_user_id = $2`,
+    [input.provider, input.providerUserId]
+  );
+
+  if (linked) {
+    const user = await getUserById(linked.user_id);
+    if (!user) throw new AuthHttpError('Linked user not found.', 404);
+    if (user.two_factor_enabled) {
+      const { signMfaPendingToken } = await import('./tokens');
+      const { setMfaPendingCookie } = await import('./cookies');
+      await setMfaPendingCookie(await signMfaPendingToken(user.id));
+      return { mfaRequired: true as const, user: toAuthUser(user) };
+    }
+    return issueSessionCookies(user);
+  }
+
+  let user = await getUserByEmail(input.email);
+  if (!user) {
+    user = await queryOne<DbUser>(
+      `INSERT INTO users (email, password_hash, email_verified, role, app_origin, full_name, avatar_url)
+       VALUES (lower($1), NULL, true, 'client', $2, $3, $4) RETURNING *`,
+      [input.email, authConfig.appOrigin, input.fullName ?? null, input.avatarUrl ?? null]
+    );
+  }
+
+  if (!user) throw new AuthHttpError('Unable to create account.', 500);
+
+  await query(
+    `INSERT INTO auth_oauth_accounts (user_id, provider, provider_user_id, provider_email)
+     VALUES ($1, $2, $3, lower($4)) ON CONFLICT (provider, provider_user_id) DO NOTHING`,
+    [user.id, input.provider, input.providerUserId, input.email]
+  );
+
+  await logAudit(user.id, 'oauth_login', { provider: input.provider });
+  if (user.two_factor_enabled) {
+    const { signMfaPendingToken } = await import('./tokens');
+    const { setMfaPendingCookie } = await import('./cookies');
+    await setMfaPendingCookie(await signMfaPendingToken(user.id));
+    return { mfaRequired: true as const, user: toAuthUser(user) };
+  }
+  return issueSessionCookies(user);
+}
+
+export function buildGoogleAuthUrl(state: string, redirectUri: string) {
+  const clientId = authConfig.googleClientId();
+  if (!clientId) throw new AuthHttpError('Google sign-in is not configured.', 503);
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    state,
+    prompt: 'select_account',
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+export async function exchangeGoogleCode(code: string, redirectUri: string) {
+  const clientId = authConfig.googleClientId();
+  const clientSecret = authConfig.googleClientSecret();
+  if (!clientId || !clientSecret) throw new AuthHttpError('Google sign-in is not configured.', 503);
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri, grant_type: 'authorization_code',
+    }),
+  });
+  if (!tokenResponse.ok) throw new AuthHttpError('Google sign-in failed.', 401);
+
+  const tokenData = (await tokenResponse.json()) as { access_token: string };
+  const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+  });
+  if (!profileResponse.ok) throw new AuthHttpError('Unable to load Google profile.', 401);
+
+  const profile = (await profileResponse.json()) as {
+    sub: string; email: string; email_verified: boolean; name?: string; picture?: string;
+  };
+
+  return findOrCreateOAuthUser({
+    provider: 'google',
+    providerUserId: profile.sub,
+    email: profile.email,
+    emailVerified: profile.email_verified,
+    fullName: profile.name ?? null,
+    avatarUrl: profile.picture ?? null,
+  });
+}
+
+export function createOAuthState(): string {
+  return generateSecureToken(16);
 }

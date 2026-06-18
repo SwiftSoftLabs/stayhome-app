@@ -183,3 +183,36 @@ When implementing auth on a new project:
 - **Middleware:** `src/middleware.ts` protects `/dashboard`, `/onboarding`, and role routes
 - **UI:** login, signup (inline verify), Navbar logout via store
 - **InsForge:** `src/lib/insforge.ts` retained for database/realtime only (no `auth` export)
+
+## 13) Phase 2 — OAuth & Password Reset UI
+
+**Cookies (added):** `sh_mfa_pending`
+
+### Completed deliverables
+
+- [x] Google OAuth on login (`startGoogleOAuth`)
+- [x] Forgot/reset password pages
+- [x] Login: forgot-password link, MFA redirect to `/mfa`
+- [x] Middleware: public `/mfa`, `/forgot-password`, `/reset-password`, OAuth/MFA/passkey auth API routes
+- [x] Navbar dropdown link to `/settings/security`
+
+### Env (Phase 2)
+
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+
+## 14) Phase 3 — 2FA, Passkeys & MFA Login Gate
+
+### Completed deliverables
+
+- [x] TOTP 2FA + passkeys API routes
+- [x] MFA login gate (`sh_mfa_pending` → `/mfa`)
+- [x] `/settings/security` page (2FA + passkeys)
+- [x] Migration `migrations/002_two_factor_passkeys_oauth.sql`
+
+### Env (Phase 3)
+
+- `JWT_MFA_PENDING_TTL_SECONDS`, `AUTH_ENCRYPTION_KEY`, `WEBAUTHN_*`
+
+### Manual test checklist
+
+- [ ] MFA login, Google OAuth, password reset, security settings enrollment

@@ -28,3 +28,15 @@ export function toErrorResponse(error: unknown) {
   console.error('[auth]', error);
   return jsonError('Something went wrong. Please try again.', 500);
 }
+
+
+export async function parseJson<T>(request: Request): Promise<T> {
+  return (await request.json()) as T;
+}
+
+export function getRequestMeta(request: Request) {
+  return {
+    userAgent: request.headers.get('user-agent'),
+    ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+  };
+}

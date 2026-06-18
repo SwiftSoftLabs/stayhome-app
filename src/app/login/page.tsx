@@ -41,20 +41,24 @@ export default function LoginPage() {
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setLoading(true);
     try {
-      const user = await loginWithEmail(email, password);
-      if (!user.emailVerified) {
+      const result = await loginWithEmail(email, password);
+      if ("mfaRequired" in result && result.mfaRequired) {
+        router.push("/mfa");
+        return;
+      }
+      if (!result.emailVerified) {
         setNeedVerify(true);
         return;
       }
       await refreshSession();
-      const { data: profile } = await profileService.getById(user.id);
+      const { data: profile } = await profileService.getById(result.id);
       const role = profile?.role ?? "family";
       _setUser({
-        id: user.id,
-        name: profile?.name ?? user.user_metadata.full_name ?? user.email.split("@")[0],
-        email: user.email,
+        id: result.id,
+        name: profile?.name ?? result.user_metadata.full_name ?? result.email.split("@")[0],
+        email: result.email,
         role,
-        avatar: profile?.avatar ?? user.user_metadata.avatar_url ?? "",
+        avatar: profile?.avatar ?? result.user_metadata.avatar_url ?? "",
         onboarded: profile?.onboarded ?? false,
       });
       if (profile && !profile.onboarded) {

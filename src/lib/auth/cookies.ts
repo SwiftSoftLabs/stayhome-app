@@ -20,10 +20,24 @@ export async function setAuthCookies(accessToken: string, refreshToken: string) 
   });
 }
 
+export async function setMfaPendingCookie(token: string) {
+  const jar = await cookies();
+  jar.set(authConfig.mfaPendingCookieName, token, {
+    ...baseOptions,
+    maxAge: authConfig.jwtMfaPendingTtlSeconds,
+  });
+}
+
+export async function getMfaPendingTokenFromCookies(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(authConfig.mfaPendingCookieName)?.value ?? null;
+}
+
 export async function clearAuthCookies() {
   const jar = await cookies();
   jar.set(authConfig.accessCookieName, '', { ...baseOptions, maxAge: 0 });
   jar.set(authConfig.refreshCookieName, '', { ...baseOptions, maxAge: 0 });
+  jar.set(authConfig.mfaPendingCookieName, '', { ...baseOptions, maxAge: 0 });
 }
 
 export async function getAccessTokenFromCookies(): Promise<string | null> {
@@ -49,4 +63,10 @@ export async function consumeOAuthStateCookie(): Promise<string | null> {
   const value = jar.get(authConfig.oauthStateCookieName)?.value ?? null;
   jar.set(authConfig.oauthStateCookieName, '', { ...baseOptions, maxAge: 0 });
   return value;
+}
+
+
+export async function clearMfaPendingFromCookies() {
+  const jar = await cookies();
+  jar.set(authConfig.mfaPendingCookieName, '', { ...baseOptions, maxAge: 0 });
 }

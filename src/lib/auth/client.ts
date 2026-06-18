@@ -33,14 +33,18 @@ export async function refreshSession(): Promise<AuthUser | null> {
   return data.user;
 }
 
-export async function loginWithEmail(email: string, password: string): Promise<AuthUser> {
+export async function loginWithEmail(
+  email: string,
+  password: string
+): Promise<AuthUser | { mfaRequired: true }> {
   const response = await fetch('/api/auth/login', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const data = await parseJson<AuthResponse>(response);
+  const data = await parseJson<AuthResponse & { mfaRequired?: boolean }>(response);
+  if (data.mfaRequired) return { mfaRequired: true };
   return data.user;
 }
 
@@ -93,3 +97,25 @@ export function startGoogleOAuth() {
   window.location.href = '/api/auth/oauth/google/start';
 }
 
+
+
+export async function verifyMfaLogin(code: string): Promise<AuthUser> {
+  const response = await fetch('/api/auth/2fa/verify-login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  const data = await parseJson<AuthResponse>(response);
+  return data.user;
+}
+
+export async function resetPasswordWithCode(email: string, code: string, password: string) {
+  const response = await fetch('/api/auth/reset-password', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, password }),
+  });
+  return parseJson<{ message: string }>(response);
+}

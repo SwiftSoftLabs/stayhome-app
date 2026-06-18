@@ -11,6 +11,7 @@ export interface DbUser {
   app_origin: string;
   full_name: string | null;
   avatar_url: string | null;
+  two_factor_enabled: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -20,6 +21,7 @@ export interface AuthUser {
   email: string;
   emailVerified: boolean;
   role: UserRole;
+  twoFactorEnabled: boolean;
   user_metadata: {
     full_name?: string | null;
     avatar_url?: string | null;
@@ -40,9 +42,15 @@ export function toAuthUser(user: DbUser): AuthUser {
     email: user.email,
     emailVerified: user.email_verified,
     role: user.role,
+    twoFactorEnabled: user.two_factor_enabled ?? false,
     user_metadata: {
       full_name: user.full_name,
       avatar_url: user.avatar_url,
     },
   };
 }
+
+
+export type TwoFactorEnableBody = { password: string };
+export type TwoFactorCodeBody = { code: string };
+export type ChangePasswordBody = { currentPassword: string; newPassword: string };

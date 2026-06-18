@@ -18,8 +18,27 @@ const PROTECTED_PREFIXES = [
   '/audits',
 ];
 
+const PUBLIC_AUTH_PATHS = ['/mfa', '/forgot-password', '/reset-password'];
+
+function isPublicAuthApi(pathname: string): boolean {
+  if (!pathname.startsWith('/api/auth/')) return false;
+  if (pathname.startsWith('/api/auth/oauth/')) return true;
+  if (pathname === '/api/auth/2fa/verify-login') return true;
+  if (pathname.startsWith('/api/auth/passkeys/authenticate/')) return true;
+  return false;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (PUBLIC_AUTH_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return NextResponse.next();
+  }
+
+  if (isPublicAuthApi(pathname)) {
+    return NextResponse.next();
+  }
+
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -40,6 +59,12 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/mfa',
+    '/forgot-password',
+    '/forgot-password/:path*',
+    '/reset-password',
+    '/reset-password/:path*',
+    '/api/auth/:path*',
     '/dashboard/:path*',
     '/onboarding/:path*',
     '/profile/:path*',

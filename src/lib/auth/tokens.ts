@@ -63,3 +63,21 @@ export async function verifyRefreshToken(token: string): Promise<AuthSessionPayl
   }
   return payload as unknown as AuthSessionPayload;
 }
+
+
+export async function signMfaPendingToken(userId: string): Promise<string> {
+  return new SignJWT({ type: 'mfa_pending' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime(`${authConfig.jwtMfaPendingTtlSeconds}s`)
+    .sign(accessSecret());
+}
+
+export async function verifyMfaPendingToken(token: string): Promise<{ sub: string }> {
+  const { payload } = await jwtVerify(token, accessSecret());
+  if (payload.type !== 'mfa_pending' || !payload.sub) {
+    throw new Error('Invalid MFA token');
+  }
+  return { sub: payload.sub };
+}

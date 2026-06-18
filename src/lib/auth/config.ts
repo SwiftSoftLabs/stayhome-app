@@ -40,6 +40,14 @@ export const authConfig = {
   accessCookieName: 'sh_access',
   refreshCookieName: 'sh_refresh',
   oauthStateCookieName: 'sh_oauth_state',
+  jwtMfaPendingTtlSeconds: Number(optionalEnv('JWT_MFA_PENDING_TTL_SECONDS', '300')),
+  encryptionKey: () => optionalEnv('AUTH_ENCRYPTION_KEY', process.env.JWT_ACCESS_SECRET || 'dev-encryption-key-min-32-chars!!'),
+  webauthnRpId: () => optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
+  webauthnRpName: () => optionalEnv('WEBAUTHN_RP_NAME', 'StayHome'),
+  webauthnOrigin: () => optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:3000'),
+  githubClientId: () => process.env.GITHUB_CLIENT_ID || '',
+  githubClientSecret: () => process.env.GITHUB_CLIENT_SECRET || '',
+  mfaPendingCookieName: 'sh_mfa_pending',
 };
 
 export function getAppBaseUrl(requestUrl?: string): string {
