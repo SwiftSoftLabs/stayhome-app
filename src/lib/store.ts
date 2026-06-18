@@ -2,10 +2,10 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import React from "react";
-import { auth } from "@/lib/insforge";
+import { fetchCurrentUser, logoutSession } from "@/lib/auth/client";
+import { profileService } from "@/lib/services/profile.service";
 import type { Profile, AppNotification } from "@/lib/types";
 
-// Re-export for backward compat with existing components
 export type { AppNotification as Notification };
 
 export interface AuthUser {
@@ -29,9 +29,25 @@ interface StoreState {
   logout: () => void;
   _setUser: (u: AuthUser | null) => void;
   _setNotifications: (ns: AppNotification[] | ((prev: AppNotification[]) => AppNotification[])) => void;
+  refreshSession: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreState | null>(null);
+
+async function hydrateUserFromSession(): Promise<AuthUser | null> {
+  const jwtUser = await fetchCurrentUser();
+  if (!jwtUser) return null;
+
+  const { data: profile } = await profileService.getById(jwtUser.id);
+  return {
+    id: jwtUser.id,
+    name: profile?.name ?? jwtUser.user_metadata.full_name ?? jwtUser.email.split("@")[0],
+    email: jwtUser.email,
+    role: profile?.role ?? "family",
+    avatar: profile?.avatar ?? jwtUser.user_metadata.avatar_url ?? "",
+    onboarded: profile?.onboarded ?? false,
+  };
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -39,23 +55,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
-  useEffect(() => {
-    auth.getCurrentUser().then(({ data }) => {
-      if (data?.user) {
-        const u = data.user;
-        setCurrentUser({
-          id: u.id,
-          name: u.profile?.name ?? u.email.split("@")[0],
-          email: u.email,
-          role: (u.metadata as Record<string, string>)?.role ?? "family",
-          avatar: u.profile?.avatar_url ?? "",
-          onboarded: (u.metadata as Record<string, boolean>)?.onboarded ?? false,
-        });
-      }
-      setLoading(false);
-    });
+  const refreshSession = useCallback(async () => {
+    const user = await hydrateUserFromSession();
+    setCurrentUser(user);
   }, []);
+
+  useEffect(() => {
+    refreshSession().finally(() => setLoading(false));
+  }, [refreshSession]);
 
   const setProfile = useCallback((p: Profile) => setProfileState(p), []);
 
@@ -82,7 +89,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await auth.signOut();
+    await logoutSession();
     setCurrentUser(null);
     setProfileState(null);
     setNotifications([]);
@@ -106,6 +113,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         logout,
         _setUser,
         _setNotifications,
+        refreshSession,
       },
     },
     children

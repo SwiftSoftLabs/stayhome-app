@@ -4,8 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { auth } from "@/lib/insforge";
 import { profileService } from "@/lib/services/profile.service";
+import {
+  signupWithEmail,
+  verifyEmailCode,
+  startGoogleOAuth,
+} from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -20,7 +24,7 @@ const roles = [
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { _setUser } = useStore();
+  const { _setUser, refreshSession } = useStore();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,53 +42,37 @@ export default function SignUpPage() {
     setError("");
     if (!name || !email || !password || !confirmPassword) { setError("Please fill in all fields."); return; }
     if (password !== confirmPassword) { setError("Passwords do not match."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     if (!terms) { setError("You must agree to the Terms of Service."); return; }
     setLoading(true);
-    const { data, error: err } = await auth.signUp({
-      email,
-      password,
-      name,
-      redirectTo: `${window.location.origin}/login`,
-    });
-    setLoading(false);
-    if (err) { setError(err.message ?? "Sign up failed."); return; }
-    if (!data) { setError("Sign up failed."); return; }
-
-    if (data.requireEmailVerification) {
+    try {
+      await signupWithEmail(email, password);
       setNeedVerify(true);
-      return;
-    }
-
-    // Email verification disabled — create profile and proceed
-    if (data.user) {
-      const u = data.user;
-      await profileService.upsert({ id: u.id, name, email, role, onboarded: false });
-      _setUser({ id: u.id, name, email, role, avatar: "" });
-      router.push("/onboarding");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign up failed.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setVerifyLoading(true);
-    const { data, error: err } = await auth.verifyEmail({ email, otp });
-    setVerifyLoading(false);
-    if (err) { setError(err.message ?? "Verification failed."); return; }
-    if (data?.user) {
-      const u = data.user;
-      // Create profile with chosen role
-      await profileService.upsert({ id: u.id, name, email, role, onboarded: false });
-      _setUser({ id: u.id, name, email, role, avatar: "" });
+    try {
+      const user = await verifyEmailCode(email, otp.trim());
+      await profileService.upsert({ id: user.id, name, email, role, onboarded: false });
+      await refreshSession();
+      _setUser({ id: user.id, name, email, role, avatar: "" });
       router.push("/onboarding");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
-  const handleGoogle = async () => {
-    await auth.signInWithOAuth({
-      provider: "google",
-      redirectTo: `${window.location.origin}/onboarding`,
-    });
+  const handleGoogle = () => {
+    startGoogleOAuth();
   };
 
   if (needVerify) {
@@ -142,7 +130,7 @@ export default function SignUpPage() {
               <Input label="Full Name" placeholder="Jane Doe" value={name} onChange={(e) => setName(e.target.value)} />
               <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Password" type="password" placeholder="Min. 6 chars" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input label="Password" type="password" placeholder="Min. 8 chars" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <Input label="Confirm Password" type="password" placeholder="Repeat" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
               </div>
 

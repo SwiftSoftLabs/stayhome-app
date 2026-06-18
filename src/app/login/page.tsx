@@ -4,8 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { auth } from "@/lib/insforge";
 import { profileService } from "@/lib/services/profile.service";
+import {
+  loginWithEmail,
+  verifyEmailCode,
+  startGoogleOAuth,
+} from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -22,7 +26,7 @@ function dashboardPath(role: string) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { _setUser } = useStore();
+  const { _setUser, refreshSession } = useStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,38 +40,65 @@ export default function LoginPage() {
     setError("");
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setLoading(true);
-    const { data, error: err } = await auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) { setError(err.message ?? "Login failed."); return; }
-    if (!data) { setError("Login failed."); return; }
-    const u = data.user;
-    const role = (u.metadata as Record<string, string>)?.role ?? "family";
-    _setUser({ id: u.id, name: u.profile?.name ?? u.email.split("@")[0], email: u.email, role, avatar: u.profile?.avatar_url ?? "" });
-    // Fetch profile for onboarding check
-    const { data: profile } = await profileService.getById(u.id);
-    if (profile && !profile.onboarded) { router.push("/onboarding"); return; }
-    router.push(dashboardPath(role));
+    try {
+      const user = await loginWithEmail(email, password);
+      if (!user.emailVerified) {
+        setNeedVerify(true);
+        return;
+      }
+      await refreshSession();
+      const { data: profile } = await profileService.getById(user.id);
+      const role = profile?.role ?? "family";
+      _setUser({
+        id: user.id,
+        name: profile?.name ?? user.user_metadata.full_name ?? user.email.split("@")[0],
+        email: user.email,
+        role,
+        avatar: profile?.avatar ?? user.user_metadata.avatar_url ?? "",
+        onboarded: profile?.onboarded ?? false,
+      });
+      if (profile && !profile.onboarded) {
+        router.push("/onboarding");
+        return;
+      }
+      router.push(dashboardPath(role));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setVerifyLoading(true);
-    const { data, error: err } = await auth.verifyEmail({ email, otp });
-    setVerifyLoading(false);
-    if (err) { setError(err.message ?? "Verification failed."); return; }
-    if (data?.user) {
-      const u = data.user;
-      const role = (u.metadata as Record<string, string>)?.role ?? "family";
-      _setUser({ id: u.id, name: u.profile?.name ?? u.email.split("@")[0], email: u.email, role, avatar: "" });
-      router.push("/onboarding");
+    try {
+      const user = await verifyEmailCode(email, otp.trim());
+      await refreshSession();
+      const { data: profile } = await profileService.getById(user.id);
+      const role = profile?.role ?? "family";
+      _setUser({
+        id: user.id,
+        name: profile?.name ?? user.user_metadata.full_name ?? user.email.split("@")[0],
+        email: user.email,
+        role,
+        avatar: profile?.avatar ?? "",
+        onboarded: profile?.onboarded ?? false,
+      });
+      if (profile && !profile.onboarded) {
+        router.push("/onboarding");
+        return;
+      }
+      router.push(dashboardPath(role));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setVerifyLoading(false);
     }
   };
 
-  const handleGoogle = async () => {
-    await auth.signInWithOAuth({
-      provider: "google",
-      redirectTo: `${window.location.origin}/dashboard/family`,
-    });
+  const handleGoogle = () => {
+    startGoogleOAuth();
   };
 
   if (needVerify) {
@@ -109,7 +140,6 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <Link href="/" className="mb-8 flex items-center justify-center gap-2 font-bold text-blue-600">
           <Shield className="h-8 w-8" />
           <span className="text-2xl">StayHome</span>
@@ -121,7 +151,6 @@ export default function LoginPage() {
             <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
-            {/* Google OAuth */}
             <Button
               type="button"
               variant="outline"
