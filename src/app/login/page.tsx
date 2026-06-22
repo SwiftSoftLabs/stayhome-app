@@ -46,6 +46,10 @@ export default function LoginPage() {
         router.push("/mfa");
         return;
       }
+      if (!("id" in result)) {
+        setError("Sign in failed.");
+        return;
+      }
       if (!result.emailVerified) {
         setNeedVerify(true);
         return;
@@ -58,7 +62,7 @@ export default function LoginPage() {
         name: profile?.name ?? result.user_metadata.full_name ?? result.email.split("@")[0],
         email: result.email,
         role,
-        avatar: profile?.avatar ?? result.user_metadata.avatar_url ?? "",
+        avatar: (profile as { avatar?: string } | null)?.avatar ?? result.user_metadata.avatar_url ?? "",
         onboarded: profile?.onboarded ?? false,
       });
       if (profile && !profile.onboarded) {
@@ -86,7 +90,7 @@ export default function LoginPage() {
         name: profile?.name ?? user.user_metadata.full_name ?? user.email.split("@")[0],
         email: user.email,
         role,
-        avatar: profile?.avatar ?? "",
+        avatar: (profile as { avatar?: string } | null)?.avatar ?? "",
         onboarded: profile?.onboarded ?? false,
       });
       if (profile && !profile.onboarded) {

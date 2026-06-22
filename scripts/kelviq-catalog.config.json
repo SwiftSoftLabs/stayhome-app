@@ -1,0 +1,16 @@
+{
+  "product": {
+    "name": "StayHome",
+    "identifier": "stayhome",
+    "taxCode": "saas"
+  },
+  "plans": [
+    {
+      "planCode": "pro",
+      "name": "Pro",
+      "priceUsd": 29,
+      "interval": "MONTHLY",
+      "ordering": 1
+    }
+  ]
+}
