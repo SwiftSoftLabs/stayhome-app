@@ -1,3 +1,4 @@
+import { createChatCompletion, createChatCompletionStream, createEmbedding, generateImage } from '../../../../../../lib/ai/openrouter';
 import { QUALITY_CHAT_MODEL } from '@/lib/ai/models';
 import { aiErrorResponse } from '@/lib/ai/errors';
 import { getBearerToken, getServiceInsforgeClient } from '@/lib/insforge-server';
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     const client = getServiceInsforgeClient(token);
-    const completion = await client.ai.chat.completions.create({
+    const completion = await createChatCompletion({
       model: QUALITY_CHAT_MODEL,
       messages: [
         {
