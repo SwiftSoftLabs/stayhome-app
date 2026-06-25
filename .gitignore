@@ -19,3 +19,15 @@ node_modules/
 .roo
 .trae
 .windsurf
+
+# swiftsoftlabs-billing-e2e harness output (do not commit)
+tests/e2e/artifacts/
+tests/e2e/billing.mjs
+.env.test
+# Dependencies — root + nested
+**/node_modules/
+
+# Next.js build output
+.next/
+**/.next/
+

@@ -66,6 +66,9 @@ export function Navbar() {
                     <Link href="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                       <User className="h-4 w-4" /> Profile
                     </Link>
+                    <Link href="/settings/security" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      <Shield className="h-4 w-4" /> Security
+                    </Link>
                     <Link href="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                       <Settings className="h-4 w-4" /> Settings
                     </Link>
