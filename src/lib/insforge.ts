@@ -18,7 +18,6 @@ export const insforge = createClient({
   },
 });
 
-// Convenience aliases
-export const db   = insforge.database;
-export const auth = insforge.auth;
+// Convenience aliases — auth uses JWT API routes; database still via InsForge SDK
+export const db = insforge.database;
 export const { storage, realtime, functions } = insforge;

@@ -1,0 +1,13 @@
+{
+  "appDir": "stayhome-app",
+  "appName": "StayHome",
+  "schema": "app_stayhome",
+  "slug": "stayhome",
+  "storagePrefix": "stayhome",
+  "srcPrefix": "src",
+  "billingPath": "/dashboard/family/billing",
+  "billingComponentDir": "components/billing",
+  "migrationTimestamp": "20260622140000",
+  "proPriceCents": 2900,
+  "proName": "Pro"
+}

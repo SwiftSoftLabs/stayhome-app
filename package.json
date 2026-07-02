@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "next dev -p 3059",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -28,6 +28,18 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.3",
+    "pg": "^8.21.0",
+    "zod": "^4.4.3",
+    "otpauth": "^9.5.1",
+    "@simplewebauthn/server": "^13.3.1",
+    "@simplewebauthn/browser": "^13.3.0",
+    "qrcode.react": "^4.2.0",
     "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.20.0"
   }
 }

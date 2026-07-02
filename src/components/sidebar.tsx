@@ -23,7 +23,7 @@ const sidebarLinks: Record<string, NavItem[]> = {
     { href: "/my-audits", label: "My Audits", icon: ClipboardList },
     { href: "/reports", label: "Reports", icon: FileText },
     { href: "/contractors", label: "Contractors", icon: Users },
-    { href: "/billing", label: "Billing", icon: CreditCard },
+    { href: "/dashboard/family/billing", label: "Billing", icon: CreditCard },
     { href: "/settings", label: "Settings", icon: Settings },
   ],
   assessor: [
