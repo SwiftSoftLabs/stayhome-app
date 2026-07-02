@@ -1,3 +1,4 @@
+import { createChatCompletion, createChatCompletionStream, createEmbedding, generateImage } from '../../../../../../lib/ai/openrouter';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { aiErrorResponse } from '@/lib/ai/errors';
 import { getServiceInsforgeClient } from '@/lib/insforge-server';
@@ -5,7 +6,7 @@ import { getServiceInsforgeClient } from '@/lib/insforge-server';
 export async function GET() {
   try {
     const client = getServiceInsforgeClient();
-    const completion = await client.ai.chat.completions.create({
+    const completion = await createChatCompletion({
       model: DEFAULT_CHAT_MODEL,
       messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
       maxTokens: 10,
