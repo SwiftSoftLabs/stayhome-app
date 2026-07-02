@@ -1,11 +1,11 @@
 import { createClient } from '@insforge/sdk';
 
-const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL!;
-const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!;
+const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL ?? '';
+const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY ?? '';
 export const APP_SCHEMA = process.env.NEXT_PUBLIC_DB_SCHEMA ?? 'app_stayhome';
 
 if (!baseUrl || !anonKey) {
-  throw new Error('Missing InsForge env vars.');
+  console.warn('Missing InsForge env vars — set NEXT_PUBLIC_INSFORGE_URL and NEXT_PUBLIC_INSFORGE_ANON_KEY');
 }
 
 // PostgREST schema-isolation headers — all DB queries will target app_stayhome
