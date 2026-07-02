@@ -44,7 +44,7 @@ async function hydrateUserFromSession(): Promise<AuthUser | null> {
     name: profile?.name ?? jwtUser.user_metadata.full_name ?? jwtUser.email.split("@")[0],
     email: jwtUser.email,
     role: profile?.role ?? "family",
-    avatar: (profile as { avatar?: string } | null)?.avatar ?? jwtUser.user_metadata.avatar_url ?? "",
+    avatar: profile?.avatar ?? jwtUser.user_metadata.avatar_url ?? "",
     onboarded: profile?.onboarded ?? false,
   };
 }
