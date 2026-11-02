@@ -1,4 +1,4 @@
-import { createChatCompletion, createChatCompletionStream, createEmbedding, generateImage } from '../../../../../../lib/ai/openrouter';
+import { createChatCompletion, createChatCompletionStream, createEmbedding, generateImage } from '@/lib/ai/openrouter';
 import { QUALITY_CHAT_MODEL } from '@/lib/ai/models';
 import { aiErrorResponse } from '@/lib/ai/errors';
 import { getBearerToken, getServiceInsforgeClient } from '@/lib/insforge-server';
