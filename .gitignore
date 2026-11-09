@@ -31,3 +31,5 @@ tests/e2e/billing.mjs
 .next/
 **/.next/
 
+.vercel
+.env*

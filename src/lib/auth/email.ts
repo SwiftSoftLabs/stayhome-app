@@ -32,7 +32,7 @@ function getEmailClient() {
 
 function logAuthCode(kind: 'verification' | 'reset', email: string, code: string) {
   if (process.env.NODE_ENV === 'production') return;
-  if (process.env.NODE_ENV !== 'production') console.info(`[auth] ${kind} code for ${email}: ${code}`);
+  console.info(`[auth] ${kind} code for ${email}: ${code}`);
 }
 
 function logSendFailure(kind: 'verification' | 'reset') {
