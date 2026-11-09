@@ -1,18 +1,38 @@
-import { createClient } from '@insforge/sdk';
 import { authConfig } from './config';
 
+// Server-only. InsForge rejects anon-key email sends ("Sending emails requires an
+// authenticated user"), so auth emails go through POST /api/email/send-raw with a
+// server credential read at call time. Never logs codes, addresses or provider text.
 function getEmailClient() {
-  const baseUrl = authConfig.insforgeUrl();
-  const anonKey = authConfig.insforgeAnonKey();
-  if (!baseUrl || !anonKey) {
-    return null;
-  }
-  return createClient({ baseUrl, anonKey });
+  if (typeof window !== 'undefined') return null;
+  const baseUrl = (process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL || '').trim().replace(/\/+$/, '');
+  const key = (process.env.INSFORGE_API_KEY || process.env.INSFORGE_SERVICE_KEY || '').trim();
+  if (!baseUrl || !key) return null;
+  return {
+    emails: {
+      async send(payload: { to: string; subject: string; html: string; from?: string }) {
+        let error: { message: string } | null = null;
+        try {
+          const res = await fetch(`${baseUrl}/api/email/send-raw`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15_000),
+            cache: 'no-store',
+          });
+          if (!res.ok) error = { message: `send-raw HTTP ${res.status}` };
+        } catch {
+          error = { message: 'send-raw network error' };
+        }
+        return { error };
+      },
+    },
+  };
 }
 
 function logAuthCode(kind: 'verification' | 'reset', email: string, code: string) {
   if (process.env.NODE_ENV === 'production') return;
-  console.info(`[auth] ${kind} code for ${email}: ${code}`);
+  if (process.env.NODE_ENV !== 'production') console.info(`[auth] ${kind} code for ${email}: ${code}`);
 }
 
 function logSendFailure(kind: 'verification' | 'reset') {
