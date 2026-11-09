@@ -10,6 +10,7 @@ import {
   kelviqPlanIdentifierToPlanCode,
   normalizeKelviqStatus,
   recordBillingEvent,
+  shouldApplyKelviqEntitlement,
 } from '@/lib/billing';
 import { billingJsonError } from '@/lib/billing/http';
 import { verifyKelviqWebhookSignature } from '@/lib/kelviq.server';
@@ -99,7 +100,13 @@ export async function POST(request: Request) {
             kelviq_updated_at: kelviqUpdatedAt,
           });
         }
-      } else {
+      } else if (
+        shouldApplyKelviqEntitlement({
+          isCancellation: false,
+          planCode,
+          status,
+        })
+      ) {
         await applySubscriptionTransition(customer.user_id, {
           plan_code: planCode,
           status: status || undefined,
@@ -108,6 +115,8 @@ export async function POST(request: Request) {
           cancel_at_period_end: cancelAtPeriodEnd === true ? true : cancelAtPeriodEnd === false ? false : undefined,
           kelviq_updated_at: kelviqUpdatedAt,
         });
+      } else {
+        console.error(`[kelviq webhook] ignored paid grant during free launch for ${eventType}`);
       }
     } else if (
       eventType.startsWith('subscription.')

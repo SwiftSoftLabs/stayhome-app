@@ -1,5 +1,7 @@
 # StayHome — Billing Feature MVP PRD
 
+**Free launch (2026-11-09):** The $29 Pro Kelviq plan is deactivated. Do not provision `stayhome-pro`. Leave `KELVIQ_VARIANT_PRO` empty and `BILLING_PRE_LAUNCH=true`. Checkout is fail-closed. Later in-home audits use Stripe Connect, not Kelviq. The sections below describe the earlier MVP draft and are not the launch catalog.
+
 **Status:** Draft  
 **Owner:** SwiftSoftLabs / StayHome  
 **Schema:** `app_stayhome` (InsForge, shared SwiftSoftLabs cluster)  
@@ -92,7 +94,7 @@ Kelviq `cancellationType: IMMEDIATE` + local `cancel_at_period_end=true`; webhoo
 | Local `plan_code` | Display name | Price (RECOMMENDED) | Interval | Kelviq identifier | Env var |
 |-------------------|--------------|---------------------|----------|-------------------|---------|
 | `basic` | Basic | $0 | — | — | — |
-| `pro` | Pro | $29/mo USD | monthly | `stayhome-pro` | `KELVIQ_VARIANT_PRO` |
+| `pro` | Pro | inactive historical row | — | do not provision | leave `KELVIQ_VARIANT_PRO` empty |
 
 **Catalog config:** `scripts/kelviq-catalog.config.json`
 
@@ -111,6 +113,7 @@ Kelviq `cancellationType: IMMEDIATE` + local `cancel_at_period_end=true`; webhoo
 | Order | File | Purpose |
 |-------|------|---------|
 | 1 | `migrations/20260622140000_app-stayhome-billing-mvp.sql` | Billing tables, seeds, RPC |
+| 2 | `migrations/20261109120000_stayhome_free_launch.sql` | Deactivate pro, add `ai_usage` and auth email caps |
 
 **Verify after apply:**
 
@@ -136,16 +139,12 @@ node ~/.cursor/skills/swiftsoftlabs-billing/scripts/bootstrap-env-local.mjs --ap
 | `NEXT_PUBLIC_DB_SCHEMA` | `app_stayhome` |
 | `DATABASE_URL` | Sibling InsForge pattern with `search_path=app_stayhome` |
 | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | GENERATE (per app) |
-| `KELVIQ_VARIANT_PRO` | After provision → `stayhome-pro` |
+| `KELVIQ_VARIANT_PRO` | Leave empty. Do not provision a pro variant. |
+| `BILLING_PRE_LAUNCH` | `true` |
 
 ### 6.2 Catalog provision
 
-```bash
-node ~/.cursor/skills/swiftsoftlabs-billing/scripts/provision-kelviq-catalog.mjs \
-  --config scripts/kelviq-catalog.config.json \
-  --env-file .env.local \
-  --write-env
-```
+Do not run a Kelviq catalog provision for this launch. `scripts/kelviq-catalog.config.json` has no plans. Sandbox catalog writes are out of scope.
 
 ### 6.3 Webhook
 

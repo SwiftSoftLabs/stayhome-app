@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { useAudits } from "@/lib/hooks/useAudits";
+import { familyAuditStatusLabel } from "@/lib/launch/policy";
 import { useReports } from "@/lib/hooks/useReports";
 import Link from "next/link";
 import { ArrowRight, Calendar, FileText, Shield, AlertTriangle, CheckCircle, Clock } from "lucide-react";
@@ -92,7 +93,7 @@ export default function FamilyDashboard() {
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-3">
-          <Link href="/book"><Button>Book New Audit</Button></Link>
+          <Link href="/book"><Button>Request an audit</Button></Link>
           <Link href="/dashboard/family/audits"><Button variant="outline">View Audits</Button></Link>
           <Link href="/dashboard/family/contractors"><Button variant="outline">Find Contractors</Button></Link>
         </div>
@@ -111,7 +112,7 @@ export default function FamilyDashboard() {
                 <div className="flex flex-col items-center gap-3 py-8 text-center">
                   <Shield className="h-10 w-10 text-gray-300" />
                   <p className="text-gray-500">No upcoming audits</p>
-                  <Link href="/book"><Button size="sm">Book your first audit</Button></Link>
+                  <Link href="/book"><Button size="sm">Request an audit</Button></Link>
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -125,7 +126,7 @@ export default function FamilyDashboard() {
                         </p>
                       </div>
                       <Badge variant={audit.status === "in_progress" ? "warning" : "default"}>
-                        {audit.status.replace("_", " ")}
+                        {familyAuditStatusLabel(audit.status, audit.assessor_id)}
                       </Badge>
                     </li>
                   ))}

@@ -47,7 +47,6 @@ export default function AdminDashboardPage() {
     { label: "Manage Users", href: "/dashboard/admin/users" },
     { label: "Review Audits", href: "/dashboard/admin/audits" },
     { label: "View Reports", href: "/dashboard/admin/reports" },
-    { label: "Payments", href: "/dashboard/admin/payments" },
   ];
 
   return (

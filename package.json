@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:unit": "node --experimental-strip-types --test src/lib/launch/policy.test.ts"
   },
   "keywords": [],
   "author": "",

@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { propertyService } from "@/lib/services/property.service";
 import { auditService } from "@/lib/services/audit.service";
 import { useStore } from "@/lib/store";
-import type { AuditPackage } from "@/lib/types";
-import Link from "next/link";
+import { validateAuditAddress } from "@/lib/launch/policy";
 
-const steps = ["Address", "Date & Time", "Package", "Confirm"];
+const steps = ["Address", "Date & Time", "Review"];
 
 const DATES = Array.from({ length: 6 }, (_, i) => {
   const d = new Date();
@@ -22,38 +20,114 @@ const DATES = Array.from({ length: 6 }, (_, i) => {
 });
 const TIMES = ["9:00 AM", "11:00 AM", "1:00 PM", "3:00 PM"];
 
-const PACKAGES: { name: AuditPackage; price: number; features: string[] }[] = [
-  { name: "Basic", price: 199, features: ["5-room inspection", "Written report", "Email support"] },
-  { name: "Standard", price: 249, features: ["All rooms", "Photo documentation", "Priority fixes list", "Phone support"] },
-  { name: "Premium", price: 299, features: ["All rooms", "Photo + video", "Contractor matching", "90-day follow-up", "Dedicated advisor"] },
-];
+type RequestForm = {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  property_type: string;
+  floors: string;
+  rooms: string;
+  date: string;
+  time: string;
+};
+
+const emptyForm: RequestForm = {
+  street: "",
+  city: "",
+  state: "",
+  zip: "",
+  property_type: "Single Family",
+  floors: "1",
+  rooms: "5",
+  date: "",
+  time: "",
+};
+
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  autoComplete?: string;
+}) {
+  const id = label.toLowerCase().replace(/[^a-z]+/g, "-");
+  return (
+    <label htmlFor={id} className="block space-y-1">
+      <span className="text-sm font-medium text-gray-700">{label}</span>
+      <input
+        id={id}
+        type={type}
+        required
+        autoComplete={autoComplete}
+        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+    </label>
+  );
+}
 
 export default function BookPage() {
-  const router = useRouter();
-  const { currentUser, addNotification } = useStore();
+  const { currentUser, loading, addNotification } = useStore();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [booked, setBooked] = useState(false);
-  const [form, setForm] = useState({
-    street: "", city: "", state: "", zip: "",
-    property_type: "Single Family", floors: "1", rooms: "5",
-    date: "", time: "",
-    pkg: "Standard" as AuditPackage,
-  });
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<RequestForm>(emptyForm);
 
-  const set = (key: string, val: string) => setForm((p) => ({ ...p, [key]: val }));
+  const set = (key: keyof RequestForm, val: string) => {
+    setForm((current) => ({ ...current, [key]: val }));
+  };
+
+  const handleNext = () => {
+    if (step === 0) {
+      const address = validateAuditAddress(form);
+      if (!address.ok) {
+        setError(address.error);
+        return;
+      }
+    }
+    if (step === 1 && (!form.date || !form.time)) {
+      setError("Choose a date and a time.");
+      return;
+    }
+    setError(null);
+    setStep((current) => Math.min(current + 1, steps.length - 1));
+  };
 
   const handleConfirm = async () => {
     if (!currentUser) return;
-    setSubmitting(true);
+    const address = validateAuditAddress(form);
+    if (!address.ok) {
+      setError(address.error);
+      setStep(0);
+      return;
+    }
+    if (!form.date || !form.time) {
+      setError("Choose a date and a time.");
+      setStep(1);
+      return;
+    }
 
-    // 1. Create property
+    setSubmitting(true);
+    setError(null);
+
     const { data: property, error: propError } = await propertyService.create({
       owner_id: currentUser.id,
-      street: form.street || "42 Oak Lane",
-      city: form.city || "Austin",
-      state: form.state || "TX",
-      zip: form.zip || "78701",
+      street: address.value.street,
+      city: address.value.city,
+      state: address.value.state,
+      zip: address.value.zip,
       property_type: form.property_type,
       floors: Number(form.floors) || 1,
       rooms: Number(form.rooms) || 5,
@@ -61,65 +135,74 @@ export default function BookPage() {
 
     if (propError || !property) {
       addNotification({ title: "Error", message: "Failed to save property. Please try again.", type: "error" });
+      setError("Failed to save the address. Please try again.");
       setSubmitting(false);
       return;
     }
 
-    // 2. Create audit
+    // Package is the existing stored label. The request is unpaid and unassigned.
     const { data: audit, error: auditError } = await auditService.create({
       property_id: property.id,
       family_id: currentUser.id,
-      package: form.pkg,
-      scheduled_date: form.date || DATES[0],
-      scheduled_time: form.time || TIMES[0],
+      package: "Basic",
+      scheduled_date: form.date,
+      scheduled_time: form.time,
     });
 
     if (auditError || !audit) {
-      addNotification({ title: "Error", message: "Failed to book audit. Please try again.", type: "error" });
+      addNotification({ title: "Error", message: "Failed to save the audit request. Please try again.", type: "error" });
+      setError("Failed to save the audit request. Please try again.");
       setSubmitting(false);
       return;
     }
 
     addNotification({
-      title: "Booking Confirmed!",
-      message: `Your ${form.pkg} audit is scheduled for ${form.date || DATES[0]} at ${form.time || TIMES[0]}.`,
+      title: "Audit request received",
+      message: `Request for ${address.value.street} on ${form.date} at ${form.time}. No payment was collected and no assessor is assigned yet.`,
       type: "success",
     });
-    setBooked(true);
+    setSubmitted(true);
     setSubmitting(false);
   };
 
-  const selectedPkg = PACKAGES.find((p) => p.name === form.pkg)!;
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <p className="text-sm text-gray-500">Loading your account…</p>
+      </DashboardLayout>
+    );
+  }
 
-  const field = (label: string, key: string, placeholder = "", type = "text") => (
-    <label key={key} className="block space-y-1">
-      <span className="text-sm font-medium text-gray-700">{label}</span>
-      <input
-        type={type}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-        value={(form as Record<string, string>)[key]}
-        onChange={(e) => set(key, e.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
-  );
+  if (!currentUser) {
+    return (
+      <DashboardLayout>
+        <div className="mx-auto max-w-lg space-y-4 py-16 text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Request an audit</h1>
+          <p className="text-gray-600">Sign in to send a free family audit request.</p>
+          <Link href="/login"><Button>Sign in</Button></Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  if (booked) {
+  if (submitted) {
     return (
       <DashboardLayout>
         <div className="mx-auto max-w-lg space-y-6 py-20 text-center">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl text-green-600">✓</div>
-          <h2 className="text-2xl font-bold text-gray-900">Booking Confirmed!</h2>
-          <p className="text-gray-500">
-            Your <strong>{form.pkg}</strong> audit is scheduled for <strong>{form.date || DATES[0]}</strong> at <strong>{form.time || TIMES[0]}</strong>.
+          <h2 className="text-2xl font-bold text-gray-900">Audit request received</h2>
+          <p className="text-gray-600">
+            We saved your request for <strong>{form.street}</strong> on <strong>{form.date}</strong> at <strong>{form.time}</strong>.
           </p>
-          <p className="text-sm text-gray-400">A confirmation has been added to your notifications.</p>
-          <div className="flex justify-center gap-3">
+          <p className="text-sm text-gray-500">
+            This is a request only. No payment has been collected and no assessor is assigned yet.
+          </p>
+          <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Link href="/dashboard/family/audits">
-              <Button>View My Audits</Button>
+              <Button>View my audits</Button>
             </Link>
-            <Button variant="outline" onClick={() => { setBooked(false); setStep(0); setForm({ street: "", city: "", state: "", zip: "", property_type: "Single Family", floors: "1", rooms: "5", date: "", time: "", pkg: "Standard" }); }}>
-              Book Another
+            <Button variant="outline" onClick={() => { setSubmitted(false); setStep(0); setForm(emptyForm); }}>
+              Request another
             </Button>
           </div>
         </div>
@@ -127,43 +210,50 @@ export default function BookPage() {
     );
   }
 
+  const address = validateAuditAddress(form);
+
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Book an Audit</h1>
-          <p className="text-gray-500">Schedule a professional home safety assessment.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Request an audit</h1>
+          <p className="text-gray-500">Tell us where and when. This does not charge a card or assign an assessor.</p>
         </div>
 
-        {/* Stepper */}
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-gray-500">
-            {steps.map((s, i) => (
-              <span key={s} className={i <= step ? "font-semibold text-blue-600" : ""}>{s}</span>
+            {steps.map((label, index) => (
+              <span key={label} className={index <= step ? "font-semibold text-blue-600" : ""}>{label}</span>
             ))}
           </div>
           <Progress value={((step + 1) / steps.length) * 100} />
         </div>
 
+        {error && (
+          <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </p>
+        )}
+
         <Card>
-          <CardContent className="p-6 space-y-5">
-            {/* Step 0 — Address */}
+          <CardContent className="space-y-5 p-6">
             {step === 0 && (
               <>
-                <CardTitle>Property Details</CardTitle>
-                {field("Street Address", "street", "42 Oak Lane")}
-                <div className="grid grid-cols-3 gap-3">
-                  {field("City", "city", "Austin")}
-                  {field("State", "state", "TX")}
-                  {field("ZIP", "zip", "78701")}
+                <CardTitle>Property address</CardTitle>
+                <TextField label="Street address" value={form.street} onChange={(value) => set("street", value)} placeholder="Street address" autoComplete="street-address" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <TextField label="City" value={form.city} onChange={(value) => set("city", value)} placeholder="City" autoComplete="address-level2" />
+                  <TextField label="State" value={form.state} onChange={(value) => set("state", value)} placeholder="State" autoComplete="address-level1" />
+                  <TextField label="ZIP" value={form.zip} onChange={(value) => set("zip", value)} placeholder="ZIP" autoComplete="postal-code" />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <label className="block space-y-1">
-                    <span className="text-sm font-medium text-gray-700">Property Type</span>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label htmlFor="property-type" className="block space-y-1">
+                    <span className="text-sm font-medium text-gray-700">Property type</span>
                     <select
+                      id="property-type"
                       className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
                       value={form.property_type}
-                      onChange={(e) => set("property_type", e.target.value)}
+                      onChange={(event) => set("property_type", event.target.value)}
                     >
                       <option>Single Family</option>
                       <option>Condo</option>
@@ -171,114 +261,84 @@ export default function BookPage() {
                       <option>Apartment</option>
                     </select>
                   </label>
-                  {field("Floors", "floors", "2", "number")}
-                  {field("Rooms", "rooms", "6", "number")}
+                  <TextField label="Floors" value={form.floors} onChange={(value) => set("floors", value)} type="number" />
+                  <TextField label="Rooms" value={form.rooms} onChange={(value) => set("rooms", value)} type="number" />
                 </div>
               </>
             )}
 
-            {/* Step 1 — Date & Time */}
             {step === 1 && (
               <>
-                <CardTitle>Select Date &amp; Time</CardTitle>
-                <div className="grid grid-cols-3 gap-2">
-                  {DATES.map((d) => (
+                <CardTitle>Preferred date and time</CardTitle>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {DATES.map((date) => (
                     <button
-                      key={d}
-                      onClick={() => set("date", d)}
-                      className={`rounded-xl border p-3 text-sm transition-all ${form.date === d ? "border-blue-600 bg-blue-50 font-semibold text-blue-700 shadow-sm" : "border-gray-200 hover:bg-gray-50"}`}
+                      key={date}
+                      type="button"
+                      onClick={() => set("date", date)}
+                      className={`rounded-xl border p-3 text-sm transition-all ${form.date === date ? "border-blue-600 bg-blue-50 font-semibold text-blue-700 shadow-sm" : "border-gray-200 hover:bg-gray-50"}`}
+                      aria-pressed={form.date === date}
                     >
-                      {d}
+                      {date}
                     </button>
                   ))}
                 </div>
-                {form.date && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {TIMES.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => set("time", t)}
-                        className={`rounded-xl border p-2.5 text-sm transition-all ${form.time === t ? "border-blue-600 bg-blue-50 font-semibold text-blue-700 shadow-sm" : "border-gray-200 hover:bg-gray-50"}`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Step 2 — Package */}
-            {step === 2 && (
-              <>
-                <CardTitle>Choose a Package</CardTitle>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {PACKAGES.map((p) => (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {TIMES.map((time) => (
                     <button
-                      key={p.name}
-                      onClick={() => set("pkg", p.name)}
-                      className={`rounded-xl border p-4 text-left transition-all ${form.pkg === p.name ? "border-blue-600 ring-2 ring-blue-200 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
+                      key={time}
+                      type="button"
+                      onClick={() => set("time", time)}
+                      className={`rounded-xl border p-2.5 text-sm transition-all ${form.time === time ? "border-blue-600 bg-blue-50 font-semibold text-blue-700 shadow-sm" : "border-gray-200 hover:bg-gray-50"}`}
+                      aria-pressed={form.time === time}
                     >
-                      <div className="flex items-start justify-between">
-                        <p className="font-semibold text-gray-900">{p.name}</p>
-                        {form.pkg === p.name && <Badge variant="default">Selected</Badge>}
-                      </div>
-                      <p className="mt-1 text-2xl font-bold text-blue-600">${p.price}</p>
-                      <ul className="mt-3 space-y-1 text-xs text-gray-500">
-                        {p.features.map((f) => <li key={f} className="flex gap-1">&#10003; {f}</li>)}
-                      </ul>
+                      {time}
                     </button>
                   ))}
                 </div>
               </>
             )}
 
-            {/* Step 3 — Confirm */}
-            {step === 3 && (
+            {step === 2 && address.ok && (
               <>
-                <CardTitle>Review &amp; Confirm</CardTitle>
+                <CardTitle>Review request</CardTitle>
                 <div className="space-y-3 rounded-xl bg-gray-50 p-4 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
                     <span className="text-gray-500">Address</span>
-                    <span className="font-medium text-gray-900 text-right">
-                      {form.street || "42 Oak Lane"}, {form.city || "Austin"}, {form.state || "TX"} {form.zip || "78701"}
+                    <span className="font-medium text-gray-900 sm:text-right">
+                      {address.value.street}, {address.value.city}, {address.value.state} {address.value.zip}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Date &amp; Time</span>
-                    <span className="font-medium text-gray-900">{form.date || DATES[0]} at {form.time || TIMES[0]}</span>
+                  <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                    <span className="text-gray-500">Preferred time</span>
+                    <span className="font-medium text-gray-900">{form.date} at {form.time}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Package</span>
-                    <span className="font-medium text-gray-900">{selectedPkg.name}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-3">
-                    <span className="font-semibold text-gray-700">Total</span>
-                    <span className="text-xl font-bold text-blue-600">${selectedPkg.price}</span>
+                  <div className="flex flex-col gap-1 border-t pt-3 sm:flex-row sm:justify-between">
+                    <span className="font-semibold text-gray-700">Payment</span>
+                    <span className="font-medium text-gray-900">None. This is a free request.</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400">
-                  By confirming, you agree to our terms of service. Payment will be collected at the time of service.
+                <p className="text-xs text-gray-500">
+                  Submitting sends an audit request. An assessor is not assigned until StayHome assigns one.
                 </p>
               </>
             )}
           </CardContent>
         </Card>
 
-        {/* Navigation */}
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-3">
           <Button
             variant="outline"
             disabled={step === 0}
-            onClick={() => setStep((s) => Math.max(s - 1, 0))}
+            onClick={() => { setError(null); setStep((current) => Math.max(current - 1, 0)); }}
           >
             Previous
           </Button>
           {step < steps.length - 1 ? (
-            <Button onClick={() => setStep((s) => s + 1)}>Next</Button>
+            <Button onClick={handleNext}>Next</Button>
           ) : (
             <Button onClick={handleConfirm} disabled={submitting}>
-              {submitting ? "Booking..." : "Confirm Booking"}
+              {submitting ? "Sending request…" : "Submit request"}
             </Button>
           )}
         </div>

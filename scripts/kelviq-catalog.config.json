@@ -4,13 +4,9 @@
     "identifier": "stayhome",
     "taxCode": "saas"
   },
-  "plans": [
-    {
-      "planCode": "pro",
-      "name": "Pro",
-      "priceUsd": 29,
-      "interval": "MONTHLY",
-      "ordering": 1
-    }
-  ]
+  "plans": [],
+  "launch": {
+    "kelviqCheckout": "blocked",
+    "reason": "Free family launch. Do not provision a pro variant. Future in-home audits use Stripe Connect, not Kelviq."
+  }
 }

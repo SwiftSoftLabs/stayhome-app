@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { KELVIQ_CHECKOUT_OPEN } from '@/lib/launch/policy';
 
 const KELVIQ_API_BASE_URL = process.env.KELVIQ_API_BASE_URL || '';
 const KELVIQ_API_KEY = process.env.KELVIQ_API_KEY || '';
@@ -30,8 +31,8 @@ async function kelviqFetch(path: string, init: RequestInit = {}): Promise<unknow
   return text ? JSON.parse(text) : null;
 }
 
-export function getKelviqVariantId(planCode: string): string {
-  if (planCode === 'pro') return process.env.KELVIQ_VARIANT_PRO || '';
+export function getKelviqVariantId(_planCode: string): string {
+  // Free launch has no Kelviq price. Ignore KELVIQ_VARIANT_PRO even if it is set.
   return '';
 }
 
@@ -96,6 +97,9 @@ export async function createKelviqCustomer(input: {
   externalCustomerId: string;
   name?: string | null;
 }) {
+  if (!KELVIQ_CHECKOUT_OPEN) {
+    throw new Error('BILLING_PRE_LAUNCH');
+  }
   const url = `${KELVIQ_API_BASE_URL}/customers/`;
   if (!KELVIQ_API_BASE_URL || !KELVIQ_API_KEY) throw new Error('KELVIQ_UNAVAILABLE');
 
@@ -151,6 +155,9 @@ export async function createKelviqCheckout(input: {
   successUrl: string;
   cancelUrl: string;
 }) {
+  if (!KELVIQ_CHECKOUT_OPEN) {
+    throw new Error('BILLING_PRE_LAUNCH');
+  }
   const data = await kelviqFetch('/checkout/', {
     method: 'POST',
     body: JSON.stringify({

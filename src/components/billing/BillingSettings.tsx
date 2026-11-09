@@ -249,9 +249,14 @@ export default function BillingSettings() {
                     <span className="font-semibold text-zinc-900">{formatDate(summary.current_period_end)}</span>
                   </p>
                 )}
-                {showPendingCopy && (
+                {showPendingCopy && (summary.availablePlans?.length ?? 0) > 0 && (
                   <p className="text-sm text-amber-700">
                     Previous checkout did not complete — choose a plan to try again.
+                  </p>
+                )}
+                {summary.prelaunch?.enabled && (summary.availablePlans?.length ?? 0) === 0 && !paid && (
+                  <p className="text-sm text-zinc-600">
+                    StayHome is free for families. Paid checkout is not available.
                   </p>
                 )}
                 {summary.cancel_at_period_end && summary.current_period_end && (
@@ -332,12 +337,14 @@ export default function BillingSettings() {
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-zinc-500 pt-4 border-t border-zinc-200">
-            <ShieldCheck className="w-4 h-4" />
-            <span className="text-xs font-medium uppercase tracking-wide">
-              Payments processed securely via Kelviq hosted checkout
-            </span>
-          </div>
+          {(summary.availablePlans?.length ?? 0) > 0 && (
+            <div className="flex items-center gap-2 text-zinc-500 pt-4 border-t border-zinc-200">
+              <ShieldCheck className="w-4 h-4" />
+              <span className="text-xs font-medium uppercase tracking-wide">
+                Payments processed securely via Kelviq hosted checkout
+              </span>
+            </div>
+          )}
         </>
       )}
 

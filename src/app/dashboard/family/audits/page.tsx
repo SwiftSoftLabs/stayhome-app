@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAudits } from "@/lib/hooks/useAudits";
 import Link from "next/link";
 import { Calendar, MapPin, Clock, Package, FileText } from "lucide-react";
+import { familyAuditPackageLabel, familyAuditStatusLabel } from "@/lib/launch/policy";
 import type { Audit, AuditStatus } from "@/lib/types";
 
 const statusConfig: Record<AuditStatus, { label: string; variant: "default" | "warning" | "success" | "destructive" }> = {
@@ -20,6 +21,7 @@ const statusConfig: Record<AuditStatus, { label: string; variant: "default" | "w
 
 function AuditCard({ audit }: { audit: Audit }) {
   const s = statusConfig[audit.status];
+  const label = familyAuditStatusLabel(audit.status, audit.assessor_id);
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -31,7 +33,7 @@ function AuditCard({ audit }: { audit: Audit }) {
           <div className="flex flex-wrap gap-3 text-sm text-gray-500">
             <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{audit.scheduled_date ?? "Date TBD"}</span>
             {audit.scheduled_time && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{audit.scheduled_time}</span>}
-            <span className="flex items-center gap-1"><Package className="h-3 w-3" />{audit.package}</span>
+            <span className="flex items-center gap-1"><Package className="h-3 w-3" />{familyAuditPackageLabel(audit.assessor_id, audit.package)}</span>
           </div>
           {audit.safety_score !== null && (
             <p className={`text-sm font-semibold ${audit.safety_score > 80 ? "text-green-600" : audit.safety_score >= 50 ? "text-amber-500" : "text-red-500"}`}>
@@ -40,7 +42,7 @@ function AuditCard({ audit }: { audit: Audit }) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={s.variant}>{s.label}</Badge>
+          <Badge variant={label === "Requested" ? "default" : s.variant}>{label}</Badge>
           {audit.status === "completed" && (
             <Link href={`/dashboard/family/reports/${audit.id}`}>
               <Button size="sm" variant="outline" className="gap-1">
@@ -68,7 +70,7 @@ export default function AuditsPage() {
             <h1 className="text-2xl font-bold text-gray-900">My Audits</h1>
             <p className="text-gray-500">Track all your home safety assessments.</p>
           </div>
-          <Link href="/book"><Button>Book New Audit</Button></Link>
+          <Link href="/book"><Button>Request an audit</Button></Link>
         </div>
 
         <Tabs defaultValue="all" onValueChange={setTab}>

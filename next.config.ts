@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_INSFORGE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     NEXT_PUBLIC_INSFORGE_ANON_KEY:
       process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    NEXT_PUBLIC_DB_SCHEMA: process.env.NEXT_PUBLIC_DB_SCHEMA ?? 'app_devjoy',
+    NEXT_PUBLIC_DB_SCHEMA: process.env.NEXT_PUBLIC_DB_SCHEMA ?? 'app_stayhome',
   },
 };
 

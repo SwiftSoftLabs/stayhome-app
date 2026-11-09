@@ -3,11 +3,11 @@ import {
   getBillingCustomer,
   getSubscriptionSummary,
   isPaidPlanCode,
-  upsertBillingCustomer,
 } from '@/lib/billing';
 import { billingJsonError } from '@/lib/billing/http';
 import { requireBillingUser } from '@/lib/billing/require-user';
-import { createKelviqCustomer, createKelviqPortal } from '@/lib/kelviq.server';
+import { KELVIQ_CHECKOUT_OPEN } from '@/lib/launch/policy';
+import { createKelviqPortal } from '@/lib/kelviq.server';
 
 export async function POST(request: Request) {
   try {
@@ -21,33 +21,16 @@ export async function POST(request: Request) {
       return billingJsonError('NO_ACTIVE_SUBSCRIPTION', 'No paid subscription exists.', 400);
     }
 
-    const kelviqCustomer = await createKelviqCustomer({
-      email: existingCustomer?.billing_email || user.email || `${user.id}@example.com`,
-      externalCustomerId: user.id,
-    });
-
     const portalCustomerId =
-      kelviqCustomer.data?.portal_customer_id
-      || kelviqCustomer.data?.customer_id
-      || existingCustomer?.kelviq_customer_id;
+      existingCustomer?.kelviq_internal_customer_id
+      || existingCustomer?.kelviq_customer_id
+      || null;
 
+    if (!KELVIQ_CHECKOUT_OPEN && !portalCustomerId) {
+      return billingJsonError('BILLING_PRE_LAUNCH', 'Billing not yet available.', 403);
+    }
     if (!portalCustomerId) {
       return billingJsonError('NO_ACTIVE_SUBSCRIPTION', 'No paid subscription exists.', 400);
-    }
-
-    if (kelviqCustomer.data?.customer_id || kelviqCustomer.data?.internal_id) {
-      await upsertBillingCustomer({
-        user_id: user.id,
-        kelviq_customer_id:
-          kelviqCustomer.data?.portal_customer_id
-          || kelviqCustomer.data?.customer_id
-          || portalCustomerId,
-        kelviq_internal_customer_id:
-          kelviqCustomer.data?.internal_id || existingCustomer?.kelviq_internal_customer_id || null,
-        billing_email: existingCustomer?.billing_email || user.email || `${user.id}@example.com`,
-        created_at: existingCustomer?.created_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
     }
 
     const portal = await createKelviqPortal({ customerId: portalCustomerId });
@@ -61,7 +44,7 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return billingJsonError('UNAUTHORIZED', 'Not authenticated.', 401);
     }
-    console.error('[billing/portal]', error);
+    console.error('[billing/portal] unavailable');
     return billingJsonError('KELVIQ_UNAVAILABLE', 'Kelviq portal is unavailable.', 503);
   }
 }

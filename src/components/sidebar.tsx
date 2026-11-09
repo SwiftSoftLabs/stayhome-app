@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, ClipboardList, FileText, Users, CreditCard,
-  Settings, Calendar, ClipboardCheck, FileEdit, DollarSign,
+  LayoutDashboard, ClipboardList, FileText, Users,
+  Settings, Calendar, ClipboardCheck, FileEdit,
   Inbox, Hammer, CheckCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -23,7 +23,6 @@ const sidebarLinks: Record<string, NavItem[]> = {
     { href: "/my-audits", label: "My Audits", icon: ClipboardList },
     { href: "/reports", label: "Reports", icon: FileText },
     { href: "/contractors", label: "Contractors", icon: Users },
-    { href: "/dashboard/family/billing", label: "Billing", icon: CreditCard },
     { href: "/settings", label: "Settings", icon: Settings },
   ],
   assessor: [
@@ -31,7 +30,6 @@ const sidebarLinks: Record<string, NavItem[]> = {
     { href: "/schedule", label: "Schedule", icon: Calendar },
     { href: "/active-audits", label: "Active Audits", icon: ClipboardCheck },
     { href: "/report-builder", label: "Report Builder", icon: FileEdit },
-    { href: "/earnings", label: "Earnings", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
   ],
   contractor: [
@@ -39,7 +37,6 @@ const sidebarLinks: Record<string, NavItem[]> = {
     { href: "/leads", label: "Leads", icon: Inbox },
     { href: "/active-jobs", label: "Active Jobs", icon: Hammer },
     { href: "/completed", label: "Completed", icon: CheckCircle },
-    { href: "/payments", label: "Payments", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
   ],
   admin: [
@@ -47,7 +44,6 @@ const sidebarLinks: Record<string, NavItem[]> = {
     { href: "/users", label: "Users", icon: Users },
     { href: "/audits", label: "Audits", icon: ClipboardList },
     { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/payments", label: "Payments", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
   ],
 };

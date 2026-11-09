@@ -115,7 +115,6 @@ export default function AssessorDashboard() {
               {[
                 { label: "View Schedule", href: "/dashboard/assessor/schedule" },
                 { label: "Write Report", href: "/dashboard/assessor/report-builder" },
-                { label: "View Earnings", href: "/dashboard/assessor/earnings" },
               ].map((action) => (
                 <Link key={action.label} href={action.href}>
                   <Button variant="outline" className="w-full justify-start">{action.label}</Button>

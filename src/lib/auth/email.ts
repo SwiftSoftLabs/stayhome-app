@@ -10,6 +10,15 @@ function getEmailClient() {
   return createClient({ baseUrl, anonKey });
 }
 
+function logAuthCode(kind: 'verification' | 'reset', email: string, code: string) {
+  if (process.env.NODE_ENV === 'production') return;
+  console.info(`[auth] ${kind} code for ${email}: ${code}`);
+}
+
+function logSendFailure(kind: 'verification' | 'reset') {
+  console.error(`[auth] failed to send ${kind} email`);
+}
+
 export async function sendVerificationEmail(email: string, code: string) {
   const client = getEmailClient();
   const html = `
@@ -22,7 +31,7 @@ export async function sendVerificationEmail(email: string, code: string) {
   `;
 
   if (!client) {
-    console.info(`[auth] verification code for ${email}: ${code}`);
+    logAuthCode('verification', email, code);
     return;
   }
 
@@ -34,8 +43,8 @@ export async function sendVerificationEmail(email: string, code: string) {
   });
 
   if (error) {
-    console.error('[auth] failed to send verification email:', error.message);
-    console.info(`[auth] verification code fallback for ${email}: ${code}`);
+    logSendFailure('verification');
+    logAuthCode('verification', email, code);
   }
 }
 
@@ -51,7 +60,7 @@ export async function sendPasswordResetEmail(email: string, code: string) {
   `;
 
   if (!client) {
-    console.info(`[auth] password reset code for ${email}: ${code}`);
+    logAuthCode('reset', email, code);
     return;
   }
 
@@ -63,7 +72,7 @@ export async function sendPasswordResetEmail(email: string, code: string) {
   });
 
   if (error) {
-    console.error('[auth] failed to send reset email:', error.message);
-    console.info(`[auth] password reset fallback for ${email}: ${code}`);
+    logSendFailure('reset');
+    logAuthCode('reset', email, code);
   }
 }

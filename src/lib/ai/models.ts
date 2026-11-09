@@ -1,5 +1,7 @@
-export const DEFAULT_CHAT_MODEL =
-  process.env.AI_CHAT_MODEL ?? process.env.OPENROUTER_CHAT_MODEL ?? 'google/gemini-2.5-flash-lite';
+import { PINNED_FLASH_LITE_MODEL } from '@/lib/launch/policy';
 
-export const QUALITY_CHAT_MODEL =
-  process.env.AI_QUALITY_MODEL ?? process.env.OPENROUTER_QUALITY_MODEL ?? 'google/gemini-2.5-flash';
+/** Pinned. AI_CHAT_MODEL and AI_QUALITY_MODEL cannot select a larger model. */
+export const DEFAULT_CHAT_MODEL = PINNED_FLASH_LITE_MODEL;
+
+/** Pinned. Audit summaries always use Flash-Lite. */
+export const QUALITY_CHAT_MODEL = PINNED_FLASH_LITE_MODEL;

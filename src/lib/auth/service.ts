@@ -11,6 +11,7 @@ import {
   setAuthCookies,
 } from './cookies';
 import { sendPasswordResetEmail, sendVerificationEmail } from './email';
+import { AuthEmailLimitedError, reserveAuthEmail } from './email-rate-limit';
 import { AuthHttpError } from './http';
 import type { AuthUser, DbUser, VerificationCodeType } from './types';
 import { toAuthUser } from './types';
@@ -67,6 +68,8 @@ export async function signupWithEmail(email: string, password: string) {
   if (existing) {
     throw new AuthHttpError('An account with this email already exists.', 409);
   }
+
+  await reserveAuthEmail(email, 'email_verification');
 
   const passwordHash = await hashPassword(password);
   const user = await queryOne<DbUser>(
@@ -158,6 +161,8 @@ export async function resendVerification(email: string) {
     throw new AuthHttpError('Email is already verified.', 400);
   }
 
+  await reserveAuthEmail(email, 'email_verification');
+
   const code = generateOtpCode();
   await query(
     `INSERT INTO auth_verification_codes (user_id, email, code, type, expires_at)
@@ -234,6 +239,15 @@ export async function forgotPassword(email: string) {
   const user = await getUserByEmail(email);
   if (!user) {
     return { message: 'If an account exists, a reset code has been sent.' };
+  }
+
+  try {
+    await reserveAuthEmail(email, 'password_reset');
+  } catch (error) {
+    if (error instanceof AuthEmailLimitedError) {
+      return { message: 'If an account exists, a reset code has been sent.' };
+    }
+    throw error;
   }
 
   const code = generateOtpCode();

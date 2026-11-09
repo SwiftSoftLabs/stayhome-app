@@ -1,4 +1,9 @@
 import { buildSet, query } from '@/lib/db';
+import {
+  KELVIQ_CHECKOUT_OPEN,
+  isPaidPlanCode,
+  isPaidStatus,
+} from '@/lib/launch/policy';
 import type {
   BillingCustomerRecord,
   BillingPlanRecord,
@@ -7,21 +12,13 @@ import type {
   UserSubscriptionRecord,
 } from '@/types/billing';
 
-const PRELAUNCH_ENABLED = process.env.BILLING_PRE_LAUNCH === 'true';
+export { isPaidPlanCode, isPaidStatus, shouldApplyKelviqEntitlement } from '@/lib/launch/policy';
+
+const PRELAUNCH_ENABLED = process.env.BILLING_PRE_LAUNCH !== 'false';
 const TESTER_EMAILS = (process.env.BILLING_TESTER_EMAILS || '')
   .split(',')
   .map((value) => value.trim().toLowerCase())
   .filter(Boolean);
-
-const PAID_PLAN_CODES = new Set(['pro']);
-
-export function isPaidStatus(status: BillingStatus) {
-  return status === 'active' || status === 'trialing' || status === 'past_due';
-}
-
-export function isPaidPlanCode(planCode: string) {
-  return PAID_PLAN_CODES.has(planCode);
-}
 
 export function isDeferredCancelActive(subscription: UserSubscriptionRecord): boolean {
   return subscription.cancel_at_period_end === true
@@ -168,12 +165,12 @@ export async function getSubscriptionSummary(
   userId: string,
   email?: string | null,
 ): Promise<BillingSummaryMvp> {
-  const [plans, subscription, catalog] = await Promise.all([
-    getPlanMap(),
-    getUserSubscription(userId),
+  const subscription = await getUserSubscription(userId);
+  const [planResult, catalog] = await Promise.all([
+    query<BillingPlanRecord>(`SELECT * FROM billing_plans WHERE code = $1`, [subscription.plan_code]),
     listBillingPlans(),
   ]);
-  const plan = plans.get(subscription.plan_code);
+  const plan = planResult.rows[0];
 
   if (!plan) {
     throw new Error('INVALID_PLAN_CODE');
@@ -214,18 +211,20 @@ export async function getSubscriptionSummary(
     kelviq_subscription_id: subscription.kelviq_subscription_id,
     is_manual: subscription.is_manual,
     prelaunch: {
-      enabled: PRELAUNCH_ENABLED,
+      enabled: PRELAUNCH_ENABLED || !KELVIQ_CHECKOUT_OPEN,
       is_tester: isBillingTester(email),
     },
-    availablePlans: catalog
-      .filter((entry) => isPaidPlanCode(entry.code))
-      .map((entry) => ({
-        code: entry.code,
-        name: entry.name,
-        price_cents: entry.price_cents,
-        currency: entry.currency,
-        interval: entry.interval,
-      })),
+    availablePlans: KELVIQ_CHECKOUT_OPEN
+      ? catalog
+        .filter((entry) => isPaidPlanCode(entry.code))
+        .map((entry) => ({
+          code: entry.code,
+          name: entry.name,
+          price_cents: entry.price_cents,
+          currency: entry.currency,
+          interval: entry.interval,
+        }))
+      : [],
   };
 }
 
@@ -272,6 +271,9 @@ export async function abandonPendingCheckout(userId: string) {
 }
 
 export async function createPendingSubscription(userId: string, planCode: string) {
+  if (!KELVIQ_CHECKOUT_OPEN) {
+    throw new Error('BILLING_PRE_LAUNCH');
+  }
   const plans = await getPlanMap();
   const plan = plans.get(planCode);
   if (!plan || !plan.active || !isPaidPlanCode(plan.code)) {

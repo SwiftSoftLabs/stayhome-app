@@ -83,8 +83,12 @@ VALUES
   ('basic', 'Basic', 0, 'usd', NULL, NULL, true, 0),
   ('pro', 'Pro', 2900, 'usd', 'month', 'stayhome-pro', true, 1)
 ON CONFLICT (code) DO UPDATE SET
-  name = EXCLUDED.name, price_cents = EXCLUDED.price_cents, kelviq_variant_id = EXCLUDED.kelviq_variant_id,
-  active = EXCLUDED.active, sort_order = EXCLUDED.sort_order, updated_at = now();
+  name = EXCLUDED.name,
+  price_cents = EXCLUDED.price_cents,
+  kelviq_variant_id = billing_plans.kelviq_variant_id,
+  active = billing_plans.active,
+  sort_order = EXCLUDED.sort_order,
+  updated_at = now();
 
 CREATE OR REPLACE FUNCTION app_stayhome.ensure_basic_subscription_for_user(target_user_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = app_stayhome AS $$

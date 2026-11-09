@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { authConfig } from '@/lib/auth/config';
 import { verifyAccessToken } from '@/lib/auth/tokens';
+import type { AuthSessionPayload } from '@/lib/auth/types';
 
 export type AuthUser = { id: string; email: string };
 
@@ -23,13 +24,17 @@ function getAccessToken(request: Request): string | null {
   return readCookie(request.headers.get('cookie'), authConfig.accessCookieName);
 }
 
-export async function requireAuthUser(request: Request): Promise<AuthUser> {
+export async function readVerifiedAccessToken(request: Request): Promise<AuthSessionPayload> {
   const token = getAccessToken(request);
   if (!token) throw new Error('UNAUTHORIZED');
   try {
-    const payload = await verifyAccessToken(token);
-    return { id: payload.sub, email: payload.email };
+    return await verifyAccessToken(token);
   } catch {
     throw new Error('UNAUTHORIZED');
   }
+}
+
+export async function requireAuthUser(request: Request): Promise<AuthUser> {
+  const payload = await readVerifiedAccessToken(request);
+  return { id: payload.sub, email: payload.email };
 }
