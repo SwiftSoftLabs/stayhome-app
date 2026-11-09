@@ -197,9 +197,8 @@ export async function cancelKelviqSubscription(
 }
 
 export function verifyKelviqWebhookSignature(rawBody: string, headers: Headers) {
-  if (!KELVIQ_WEBHOOK_SECRET) {
-    throw new Error('KELVIQ_UNAVAILABLE');
-  }
+  // No secret configured: treat as unverifiable (400), never a 500.
+  if (!KELVIQ_WEBHOOK_SECRET) return false;
 
   const webhookId = headers.get('webhook-id');
   const webhookTimestamp = headers.get('webhook-timestamp');
