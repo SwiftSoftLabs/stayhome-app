@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildGoogleAuthUrl, createOAuthState } from '@/lib/auth/service';
-import { setOAuthStateCookie } from '@/lib/auth/cookies';
+import { setLegalConsentCookie, setOAuthStateCookie } from '@/lib/auth/cookies';
 import { getAppBaseUrl } from '@/lib/auth/config';
 import { AuthHttpError } from '@/lib/auth/http';
 
@@ -16,6 +16,8 @@ export async function GET(
   try {
     const state = createOAuthState();
     await setOAuthStateCookie(state);
+    const consent = new URL(request.url).searchParams.get('consent');
+    await setLegalConsentCookie(consent === '1');
     const redirectUri = `${getAppBaseUrl(request.url)}/api/auth/oauth/google/callback`;
     const url = buildGoogleAuthUrl(state, redirectUri);
     return NextResponse.redirect(url);

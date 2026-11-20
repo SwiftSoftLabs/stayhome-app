@@ -34,6 +34,7 @@ export default function LoginPage() {
   const [needVerify, setNeedVerify] = useState(false);
   const [otp, setOtp] = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +107,11 @@ export default function LoginPage() {
   };
 
   const handleGoogle = () => {
-    startGoogleOAuth();
+    if (!acceptedLegal) {
+      setError("For new Google accounts, accept the Privacy Policy and Terms of Service first.");
+      return;
+    }
+    startGoogleOAuth(true);
   };
 
   if (needVerify) {
@@ -159,6 +164,21 @@ export default function LoginPage() {
             <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
+            <label className="mb-3 flex items-start gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={acceptedLegal}
+                onChange={(e) => setAcceptedLegal(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600"
+              />
+              <span>
+                For new Google accounts, I agree to the{" "}
+                <Link href="/terms" className="text-blue-600 hover:underline">Terms of Service</Link>
+                {" "}and{" "}
+                <Link href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link>
+              </span>
+            </label>
+
             <Button
               type="button"
               variant="outline"

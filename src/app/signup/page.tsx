@@ -43,10 +43,13 @@ export default function SignUpPage() {
     if (!name || !email || !password || !confirmPassword) { setError("Please fill in all fields."); return; }
     if (password !== confirmPassword) { setError("Passwords do not match."); return; }
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (!terms) { setError("You must agree to the Terms of Service."); return; }
+    if (!terms) {
+      setError("Accept the Privacy Policy and Terms of Service to create an account.");
+      return;
+    }
     setLoading(true);
     try {
-      await signupWithEmail(email, password);
+      await signupWithEmail(email, password, true);
       setNeedVerify(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
@@ -72,7 +75,11 @@ export default function SignUpPage() {
   };
 
   const handleGoogle = () => {
-    startGoogleOAuth();
+    if (!terms) {
+      setError("Accept the Privacy Policy and Terms of Service to create an account.");
+      return;
+    }
+    startGoogleOAuth(true);
   };
 
   if (needVerify) {
@@ -114,6 +121,14 @@ export default function SignUpPage() {
             <CardDescription>Get started with StayHome in minutes</CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
+            {error && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
+
+            <label className="mb-4 flex items-start gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
+              <span>I agree to the <Link href="/terms" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link></span>
+            </label>
+
             <Button type="button" variant="outline" className="w-full flex items-center gap-2 mb-4" onClick={handleGoogle}>
               <Chrome className="h-4 w-4" />
               Continue with Google
@@ -126,7 +141,6 @@ export default function SignUpPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
               <Input label="Full Name" placeholder="Jane Doe" value={name} onChange={(e) => setName(e.target.value)} />
               <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
               <div className="grid grid-cols-2 gap-3">
@@ -155,12 +169,6 @@ export default function SignUpPage() {
                   ))}
                 </div>
               </div>
-
-              <label className="flex items-start gap-2 text-sm text-gray-600">
-                <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
-                <span>I agree to the <Link href="/terms" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link></span>
-              </label>
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account..." : "Create Account"}

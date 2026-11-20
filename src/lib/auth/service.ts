@@ -63,7 +63,18 @@ async function issueSessionCookies(user: DbUser) {
   return toAuthUser(user);
 }
 
-export async function signupWithEmail(email: string, password: string) {
+export async function signupWithEmail(
+  email: string,
+  password: string,
+  acceptedLegal = false,
+) {
+  if (!acceptedLegal) {
+    throw new AuthHttpError(
+      'Accept the Privacy Policy and Terms of Service to create an account.',
+      400,
+    );
+  }
+
   const existing = await getUserByEmail(email);
   if (existing) {
     throw new AuthHttpError('An account with this email already exists.', 409);
@@ -73,8 +84,8 @@ export async function signupWithEmail(email: string, password: string) {
 
   const passwordHash = await hashPassword(password);
   const user = await queryOne<DbUser>(
-    `INSERT INTO users (email, password_hash, email_verified, role, app_origin)
-     VALUES (lower($1), $2, false, 'client', $3)
+    `INSERT INTO users (email, password_hash, email_verified, role, app_origin, legal_accepted_at)
+     VALUES (lower($1), $2, false, 'client', $3, now())
      RETURNING *`,
     [email, passwordHash, authConfig.appOrigin]
   );
@@ -335,6 +346,7 @@ export async function findOrCreateOAuthUser(input: {
   emailVerified: boolean;
   fullName?: string | null;
   avatarUrl?: string | null;
+  acceptedLegal?: boolean;
 }) {
   if (!input.emailVerified) {
     throw new AuthHttpError('Google account email must be verified.', 403);
@@ -359,10 +371,21 @@ export async function findOrCreateOAuthUser(input: {
 
   let user = await getUserByEmail(input.email);
   if (!user) {
+    if (!input.acceptedLegal) {
+      throw new AuthHttpError(
+        'Accept the Privacy Policy and Terms of Service to create an account.',
+        400,
+      );
+    }
     user = await queryOne<DbUser>(
-      `INSERT INTO users (email, password_hash, email_verified, role, app_origin, full_name, avatar_url)
-       VALUES (lower($1), NULL, true, 'client', $2, $3, $4) RETURNING *`,
+      `INSERT INTO users (email, password_hash, email_verified, role, app_origin, full_name, avatar_url, legal_accepted_at)
+       VALUES (lower($1), NULL, true, 'client', $2, $3, $4, now()) RETURNING *`,
       [input.email, authConfig.appOrigin, input.fullName ?? null, input.avatarUrl ?? null]
+    );
+  } else if (input.acceptedLegal && !user.legal_accepted_at) {
+    await query(
+      `UPDATE users SET legal_accepted_at = now(), updated_at = now() WHERE id = $1 AND legal_accepted_at IS NULL`,
+      [user.id],
     );
   }
 
@@ -398,7 +421,11 @@ export function buildGoogleAuthUrl(state: string, redirectUri: string) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-export async function exchangeGoogleCode(code: string, redirectUri: string) {
+export async function exchangeGoogleCode(
+  code: string,
+  redirectUri: string,
+  acceptedLegal = false,
+) {
   const clientId = authConfig.googleClientId();
   const clientSecret = authConfig.googleClientSecret();
   if (!clientId || !clientSecret) throw new AuthHttpError('Google sign-in is not configured.', 503);
@@ -429,6 +456,7 @@ export async function exchangeGoogleCode(code: string, redirectUri: string) {
     emailVerified: profile.email_verified,
     fullName: profile.name ?? null,
     avatarUrl: profile.picture ?? null,
+    acceptedLegal,
   });
 }
 

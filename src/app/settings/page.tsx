@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useRouter } from "next/navigation";
+import { deleteAccount } from "@/lib/auth/client";
 import { profileService } from "@/lib/services/profile.service";
 import { useStore } from "@/lib/store";
 
@@ -27,12 +29,14 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 }
 
 export default function SettingsPage() {
-  const { currentUser, addNotification, setProfile } = useStore();
+  const router = useRouter();
+  const { currentUser, addNotification, setProfile, logout } = useStore();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notifs, setNotifs] = useState({ email: true, sms: false, push: true });
   const [passwords, setPasswords] = useState({ current: "", new_: "", confirm: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -211,19 +215,31 @@ export default function SettingsPage() {
                 ) : (
                   <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                     <p className="mb-3 text-sm font-medium text-red-800">
-                      Are you sure? This action cannot be undone.
+                      Are you sure? This permanently deletes your StayHome account and related data. This cannot be undone.
                     </p>
                     <div className="flex gap-2">
                       <Button
                         variant="destructive"
-                        onClick={() => {
-                          addNotification({ title: "Account Scheduled for Deletion", message: "We'll process your request within 30 days.", type: "warning" });
-                          setShowDeleteConfirm(false);
+                        disabled={deleting}
+                        onClick={async () => {
+                          setDeleting(true);
+                          try {
+                            await deleteAccount("DELETE");
+                            logout();
+                            router.push("/");
+                          } catch (err) {
+                            addNotification({
+                              title: "Deletion failed",
+                              message: err instanceof Error ? err.message : "Unable to delete account.",
+                              type: "error",
+                            });
+                            setDeleting(false);
+                          }
                         }}
                       >
-                        Yes, Delete My Account
+                        {deleting ? "Deleting…" : "Yes, Delete My Account"}
                       </Button>
-                      <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+                      <Button variant="outline" disabled={deleting} onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
                     </div>
                   </div>
                 )}

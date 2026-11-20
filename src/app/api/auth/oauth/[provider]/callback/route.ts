@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { exchangeGoogleCode } from '@/lib/auth/service';
-import { consumeOAuthStateCookie } from '@/lib/auth/cookies';
+import { consumeLegalConsentCookie, consumeOAuthStateCookie } from '@/lib/auth/cookies';
 import { getAppBaseUrl } from '@/lib/auth/config';
 import { AuthHttpError } from '@/lib/auth/http';
 
@@ -32,7 +32,12 @@ export async function GET(
   }
 
   try {
-    const result = await exchangeGoogleCode(code, `${baseUrl}/api/auth/oauth/google/callback`);
+    const legalAccepted = await consumeLegalConsentCookie();
+    const result = await exchangeGoogleCode(
+      code,
+      `${baseUrl}/api/auth/oauth/google/callback`,
+      legalAccepted,
+    );
     if (result && typeof result === 'object' && 'mfaRequired' in result && result.mfaRequired) {
       return NextResponse.redirect(`${baseUrl}/mfa`);
     }

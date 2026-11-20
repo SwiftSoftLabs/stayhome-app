@@ -48,12 +48,16 @@ export async function loginWithEmail(
   return data.user;
 }
 
-export async function signupWithEmail(email: string, password: string): Promise<{ message: string }> {
+export async function signupWithEmail(
+  email: string,
+  password: string,
+  acceptedLegal = false,
+): Promise<{ message: string }> {
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, acceptedLegal }),
   });
   return parseJson<{ message: string }>(response);
 }
@@ -93,8 +97,19 @@ export async function resendVerificationEmail(email: string): Promise<{ message:
   return parseJson<{ message: string }>(response);
 }
 
-export function startGoogleOAuth() {
-  window.location.href = '/api/auth/oauth/google/start';
+export function startGoogleOAuth(acceptedLegal = false) {
+  const qs = acceptedLegal ? '?consent=1' : '';
+  window.location.href = `/api/auth/oauth/google/start${qs}`;
+}
+
+export async function deleteAccount(confirm = 'DELETE'): Promise<void> {
+  const response = await fetch('/api/account', {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm }),
+  });
+  await parseJson<{ success: boolean }>(response);
 }
 
 
