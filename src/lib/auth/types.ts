@@ -12,6 +12,7 @@ export interface DbUser {
   full_name: string | null;
   avatar_url: string | null;
   two_factor_enabled: boolean;
+  legal_accepted_at?: Date | null;
   created_at: Date;
   updated_at: Date;
 }

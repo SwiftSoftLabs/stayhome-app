@@ -45,21 +45,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="border-y border-gray-200 bg-white py-8">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 text-center md:grid-cols-3">
-            {[
-              ["3 in 4", "seniors want to age at home"],
-              ["$35,000", "avg fall hospitalization cost"],
-              ["1 in 4", "seniors will fall this year"],
-            ].map(([stat, label]) => (
-              <div key={stat}>
-                <p className="text-3xl font-bold text-blue-600">{stat}</p>
-                <p className="mt-1 text-sm text-gray-600">{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         <section id="how-it-works" className="py-20">
           <div className="mx-auto max-w-7xl px-4">
             <h2 className="text-center text-3xl font-bold text-gray-900">How It Works</h2>

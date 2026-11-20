@@ -70,3 +70,18 @@ export async function clearMfaPendingFromCookies() {
   const jar = await cookies();
   jar.set(authConfig.mfaPendingCookieName, '', { ...baseOptions, maxAge: 0 });
 }
+
+export async function setLegalConsentCookie(accepted: boolean) {
+  const jar = await cookies();
+  jar.set(authConfig.legalConsentCookieName, accepted ? '1' : '0', {
+    ...baseOptions,
+    maxAge: 600,
+  });
+}
+
+export async function consumeLegalConsentCookie(): Promise<boolean> {
+  const jar = await cookies();
+  const value = jar.get(authConfig.legalConsentCookieName)?.value ?? null;
+  jar.set(authConfig.legalConsentCookieName, '', { ...baseOptions, maxAge: 0 });
+  return value === '1';
+}

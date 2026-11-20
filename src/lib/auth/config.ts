@@ -40,6 +40,7 @@ export const authConfig = {
   accessCookieName: 'sh_access',
   refreshCookieName: 'sh_refresh',
   oauthStateCookieName: 'sh_oauth_state',
+  legalConsentCookieName: 'sh_legal_consent',
   jwtMfaPendingTtlSeconds: Number(optionalEnv('JWT_MFA_PENDING_TTL_SECONDS', '300')),
   encryptionKey: () => optionalEnv('AUTH_ENCRYPTION_KEY', process.env.JWT_ACCESS_SECRET || 'dev-encryption-key-min-32-chars!!'),
   webauthnRpId: () => optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
