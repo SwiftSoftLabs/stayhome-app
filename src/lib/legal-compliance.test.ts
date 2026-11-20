@@ -24,6 +24,17 @@ test('DELETE /api/account removes users and never touches auth_users', () => {
   assert.match(source, /confirm/);
 });
 
+test('DELETE /api/account does not delete family-owned rows by assignee id', () => {
+  const source = read('src/app/api/account/route.ts');
+  assert.doesNotMatch(source, /DELETE FROM jobs WHERE family_id = \$1 OR contractor_id/);
+  assert.doesNotMatch(source, /DELETE FROM leads WHERE family_id = \$1 OR contractor_id/);
+  assert.doesNotMatch(source, /DELETE FROM audits WHERE family_id = \$1 OR assessor_id/);
+  assert.match(source, /UPDATE jobs SET contractor_id = NULL/);
+  assert.match(source, /UPDATE audits SET assessor_id = NULL/);
+  assert.match(source, /DELETE FROM jobs WHERE family_id = \$1/);
+  assert.match(source, /DELETE FROM audits WHERE family_id = \$1/);
+});
+
 test('signup requires acceptedLegal and stores legal_accepted_at', () => {
   const route = read('src/app/api/auth/signup/route.ts');
   const service = read('src/lib/auth/service.ts');

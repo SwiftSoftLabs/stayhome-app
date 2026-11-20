@@ -44,11 +44,22 @@ export async function DELETE(request: Request) {
     }
 
     // App domain rows (InsForge tables in app_stayhome) — best-effort; may not CASCADE from users.
+    // Family-owned marketplace records are deleted only by family_id/owner_id.
+    // Assignee roles (contractor/assessor) are unlinked, never used as a delete key.
+    await bestEffort('unlink contractor jobs', async () => {
+      await query(`UPDATE jobs SET contractor_id = NULL WHERE contractor_id = $1 AND family_id <> $1`, [userId]);
+    });
+    await bestEffort('unlink contractor leads', async () => {
+      await query(`UPDATE leads SET contractor_id = NULL WHERE contractor_id = $1 AND family_id <> $1`, [userId]);
+    });
+    await bestEffort('unlink assessor audits', async () => {
+      await query(`UPDATE audits SET assessor_id = NULL WHERE assessor_id = $1 AND family_id <> $1`, [userId]);
+    });
     await bestEffort('jobs', async () => {
-      await query(`DELETE FROM jobs WHERE family_id = $1 OR contractor_id = $1`, [userId]);
+      await query(`DELETE FROM jobs WHERE family_id = $1`, [userId]);
     });
     await bestEffort('leads', async () => {
-      await query(`DELETE FROM leads WHERE family_id = $1 OR contractor_id = $1`, [userId]);
+      await query(`DELETE FROM leads WHERE family_id = $1`, [userId]);
     });
     await bestEffort('reports', async () => {
       await query(`DELETE FROM reports WHERE family_id = $1`, [userId]);
@@ -56,13 +67,13 @@ export async function DELETE(request: Request) {
     await bestEffort('audit_findings', async () => {
       await query(
         `DELETE FROM audit_findings WHERE audit_id IN (
-           SELECT id FROM audits WHERE family_id = $1 OR assessor_id = $1
+           SELECT id FROM audits WHERE family_id = $1
          )`,
         [userId],
       );
     });
     await bestEffort('audits', async () => {
-      await query(`DELETE FROM audits WHERE family_id = $1 OR assessor_id = $1`, [userId]);
+      await query(`DELETE FROM audits WHERE family_id = $1`, [userId]);
     });
     await bestEffort('properties', async () => {
       await query(`DELETE FROM properties WHERE owner_id = $1`, [userId]);
