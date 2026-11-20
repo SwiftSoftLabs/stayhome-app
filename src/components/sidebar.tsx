@@ -79,6 +79,11 @@ export function Sidebar({ className }: { className?: string }) {
           );
         })}
       </nav>
+      <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-200 px-6 py-4 text-xs text-gray-500">
+        <Link href="/legal" className="hover:text-gray-700">Legal Center</Link>
+        <Link href="/privacy" className="hover:text-gray-700">Privacy</Link>
+        <Link href="/terms" className="hover:text-gray-700">Terms</Link>
+      </nav>
     </aside>
   );
 }
