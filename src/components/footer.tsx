@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { Shield } from "lucide-react";
 
+// The signed Synlex documents. /about had no page and is gone; Contact is the signed legal contact.
 const footerLinks = [
-  { href: "/about", label: "About" },
+  { href: "/legal", label: "Legal Center" },
   { href: "/privacy", label: "Privacy" },
   { href: "/terms", label: "Terms" },
-  { href: "/contact", label: "Contact" },
+  { href: "/legal/contact", label: "Contact" },
 ];
 
 export function Footer() {
@@ -18,7 +19,7 @@ export function Footer() {
           <Shield className="h-5 w-5" />
           <span>StayHome</span>
         </Link>
-        <nav className="flex gap-6">
+        <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
           {footerLinks.map((l) => (
             <Link key={l.href} href={l.href} className="text-sm text-gray-500 hover:text-gray-700">
               {l.label}

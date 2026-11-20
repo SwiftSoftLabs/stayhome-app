@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:unit": "node --experimental-strip-types --test src/lib/launch/policy.test.ts src/lib/legal-compliance.test.ts",
+    "test:unit": "node --experimental-strip-types --test src/lib/launch/policy.test.ts src/lib/legal-compliance.test.ts && vitest run",
     "test:legal": "node --experimental-strip-types --test src/lib/legal-compliance.test.ts"
   },
   "keywords": [],
@@ -39,10 +39,13 @@
     "@simplewebauthn/browser": "^13.3.0",
     "qrcode.react": "^4.2.0",
     "openai": "^4.104.0",
-    "@sentry/nextjs": "^11.7.0"
+    "@sentry/nextjs": "^11.7.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/pg": "^8.20.0"
+    "@types/pg": "^8.20.0",
+    "vitest": "3.2.4"
   }
 }

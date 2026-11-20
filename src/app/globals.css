@@ -15,3 +15,16 @@
   --color-ring: hsl(217 91% 60%);
   --radius: 0.5rem;
 }
+
+/* Long-form legal copy: the signed Synlex documents (/privacy, /terms, /legal/*). */
+.legal-prose { line-height: 1.7; color: rgb(55 65 81); overflow-wrap: anywhere; }
+.legal-prose h1 { margin-bottom: 0.5rem; font-size: 2.25rem; line-height: 1.2; font-weight: 700; color: rgb(17 24 39); }
+.legal-prose h2 { margin-top: 2.5rem; margin-bottom: 0.75rem; font-size: 1.25rem; font-weight: 600; color: rgb(17 24 39); }
+.legal-prose h3 { margin-top: 1.5rem; font-weight: 600; color: rgb(17 24 39); }
+.legal-prose p { margin-top: 1rem; }
+.legal-prose code { font-size: 0.875em; color: rgb(17 24 39); }
+.legal-prose ul { margin-top: 1rem; padding-left: 1.25rem; list-style: disc; }
+.legal-prose ol { margin-top: 1rem; padding-left: 1.25rem; list-style: decimal; }
+.legal-prose li + li { margin-top: 0.5rem; }
+.legal-prose strong { color: rgb(17 24 39); font-weight: 600; }
+.legal-prose a { color: rgb(37 99 235); text-decoration: underline; }
