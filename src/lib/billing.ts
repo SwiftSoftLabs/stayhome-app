@@ -1,4 +1,4 @@
-import { buildSet, query } from '@/lib/db';
+import { query } from '@/lib/db';
 import {
   KELVIQ_CHECKOUT_OPEN,
   isPaidPlanCode,
@@ -13,6 +13,11 @@ import type {
 } from '@/types/billing';
 
 export { isPaidPlanCode, isPaidStatus, shouldApplyKelviqEntitlement } from '@/lib/launch/policy';
+
+// RLS is on for the billing tables and our role cannot add policies (they are owned by the
+// platform superuser), so every read and write goes through SECURITY DEFINER functions in
+// app_stayhome_billing. See migrations/20261221120000_app-stayhome-billing-definer.sql.
+const FN = 'app_stayhome_billing';
 
 const PRELAUNCH_ENABLED = process.env.BILLING_PRE_LAUNCH !== 'false';
 const TESTER_EMAILS = (process.env.BILLING_TESTER_EMAILS || '')
@@ -102,63 +107,41 @@ export async function ensureBasicSubscription(userId: string) {
 }
 
 async function getPlanMap() {
-  const result = await query<BillingPlanRecord>(
-    `SELECT * FROM billing_plans WHERE active = true ORDER BY sort_order ASC`,
-  );
+  const result = await query<BillingPlanRecord>(`SELECT * FROM ${FN}.list_active_plans()`);
   return new Map(result.rows.map((plan) => [plan.code, plan]));
 }
 
 export async function listBillingPlans() {
-  const result = await query<BillingPlanRecord>(
-    `SELECT * FROM billing_plans WHERE active = true ORDER BY sort_order ASC`,
-  );
+  const result = await query<BillingPlanRecord>(`SELECT * FROM ${FN}.list_active_plans()`);
   return result.rows;
 }
 
 export async function getBillingCustomer(userId: string) {
   const result = await query<BillingCustomerRecord>(
-    `SELECT * FROM billing_customers WHERE user_id = $1`,
+    `SELECT * FROM ${FN}.get_customer($1)`,
     [userId],
   );
   return result.rows[0] ?? null;
 }
 
-export async function upsertBillingCustomer(input: BillingCustomerRecord) {
-  const result = await query<BillingCustomerRecord>(
-    `INSERT INTO billing_customers
-       (user_id, kelviq_customer_id, kelviq_internal_customer_id, billing_email, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (user_id) DO UPDATE SET
-       kelviq_customer_id = EXCLUDED.kelviq_customer_id,
-       kelviq_internal_customer_id = EXCLUDED.kelviq_internal_customer_id,
-       billing_email = EXCLUDED.billing_email,
-       updated_at = now()
-     RETURNING *`,
-    [
-      input.user_id,
-      input.kelviq_customer_id,
-      input.kelviq_internal_customer_id,
-      input.billing_email,
-      input.created_at,
-      input.updated_at,
-    ],
+/** The row as stored, without creating a basic subscription first. */
+export async function getRawUserSubscription(userId: string) {
+  const result = await query<UserSubscriptionRecord>(
+    `SELECT * FROM ${FN}.get_subscription($1)`,
+    [userId],
   );
-  return result.rows[0] as BillingCustomerRecord;
+  return result.rows[0] ?? null;
 }
 
 export async function getUserSubscription(userId: string) {
   await ensureBasicSubscription(userId);
 
-  const result = await query<UserSubscriptionRecord>(
-    `SELECT * FROM user_subscriptions WHERE user_id = $1`,
-    [userId],
-  );
-
-  if (!result.rows[0]) {
+  const subscription = await getRawUserSubscription(userId);
+  if (!subscription) {
     throw new Error('Subscription not found after ensure_basic_subscription_for_user');
   }
 
-  return result.rows[0];
+  return subscription;
 }
 
 export async function getSubscriptionSummary(
@@ -167,7 +150,7 @@ export async function getSubscriptionSummary(
 ): Promise<BillingSummaryMvp> {
   const subscription = await getUserSubscription(userId);
   const [planResult, catalog] = await Promise.all([
-    query<BillingPlanRecord>(`SELECT * FROM billing_plans WHERE code = $1`, [subscription.plan_code]),
+    query<BillingPlanRecord>(`SELECT * FROM ${FN}.get_plan($1)`, [subscription.plan_code]),
     listBillingPlans(),
   ]);
   const plan = planResult.rows[0];
@@ -236,18 +219,23 @@ export async function applySubscriptionTransition(
   if (subscription.is_manual) return subscription;
 
   const resolvedPatch = resolveCanceledTransition(subscription, { ...patch });
-  const { clause, params, nextIdx } = buildSet(resolvedPatch as Record<string, unknown>);
+  const patchJson = subscriptionPatchJson(resolvedPatch);
+  if (!patchJson) return subscription;
 
-  if (!clause) return subscription;
+  return updateSubscriptionRow(userId, patchJson);
+}
 
+/** JSON patch for update_subscription: undefined keys are dropped (as buildSet did), null is kept. */
+export function subscriptionPatchJson(patch: Partial<UserSubscriptionRecord>): string | null {
+  const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
+  return entries.length ? JSON.stringify(Object.fromEntries(entries)) : null;
+}
+
+async function updateSubscriptionRow(userId: string, patchJson: string) {
   const result = await query<UserSubscriptionRecord>(
-    `UPDATE user_subscriptions
-     SET ${clause}, updated_at = now()
-     WHERE user_id = $${nextIdx}
-     RETURNING *`,
-    [...params, userId],
+    `SELECT * FROM ${FN}.update_subscription($1, $2::jsonb)`,
+    [userId, patchJson],
   );
-
   return result.rows[0] as UserSubscriptionRecord;
 }
 
@@ -287,25 +275,25 @@ export async function createPendingSubscription(userId: string, planCode: string
     throw new Error('ALREADY_SUBSCRIBED');
   }
 
-  const result = await query<UserSubscriptionRecord>(
-    `UPDATE user_subscriptions
-     SET plan_code = $1, status = 'pending', unit_price_cents = $2, currency = $3,
-         cancel_at_period_end = false, canceled_at = NULL, past_due_grace_ends_at = NULL, updated_at = now()
-     WHERE user_id = $4
-     RETURNING *`,
-    [plan.code, plan.price_cents, plan.currency, userId],
-  );
+  const updated = await updateSubscriptionRow(userId, subscriptionPatchJson({
+    plan_code: plan.code,
+    status: 'pending',
+    unit_price_cents: plan.price_cents,
+    currency: plan.currency,
+    cancel_at_period_end: false,
+    canceled_at: null,
+    past_due_grace_ends_at: null,
+  })!);
 
-  if (!result.rows[0]) throw new Error('Subscription not found');
-  return result.rows[0];
+  if (!updated) throw new Error('Subscription not found');
+  return updated;
 }
 
 export async function findBillingOwnerByKelviqCustomerId(customerId: string | null | undefined) {
   if (!customerId) return null;
 
   const result = await query<BillingCustomerRecord>(
-    `SELECT * FROM billing_customers
-     WHERE kelviq_customer_id = $1 OR kelviq_internal_customer_id = $1`,
+    `SELECT * FROM ${FN}.find_customer_by_kelviq_id($1)`,
     [customerId],
   );
 
@@ -400,7 +388,7 @@ export async function findBillingOwnerFromWebhookPayload(
 
   for (const email of candidateEmails) {
     const result = await query<BillingCustomerRecord>(
-      `SELECT * FROM billing_customers WHERE lower(billing_email) = lower($1) LIMIT 1`,
+      `SELECT * FROM ${FN}.find_customer_by_email($1)`,
       [email],
     );
     if (result.rows[0]) return result.rows[0];
@@ -415,12 +403,8 @@ export async function claimBillingEvent(input: {
   owner_id?: string | null;
   payload: Record<string, unknown>;
 }) {
-  const result = await query<{ provider_event_id: string; status: string }>(
-    `INSERT INTO billing_events
-       (provider_event_id, event_type, owner_id, payload, status, processed_at)
-     VALUES ($1, $2, $3, $4::jsonb, 'received', now())
-     ON CONFLICT (provider_event_id) DO NOTHING
-     RETURNING provider_event_id, status`,
+  const result = await query<{ claimed: boolean }>(
+    `SELECT ${FN}.claim_event($1, $2, $3, $4::jsonb) AS claimed`,
     [
       input.provider_event_id,
       input.event_type,
@@ -429,7 +413,7 @@ export async function claimBillingEvent(input: {
     ],
   );
 
-  if (result.rows[0]) {
+  if (result.rows[0]?.claimed) {
     return { claimed: true, alreadyProcessed: false };
   }
 
@@ -449,17 +433,7 @@ export async function recordBillingEvent(input: {
   error?: string | null;
 }) {
   await query(
-    `INSERT INTO billing_events
-       (provider_event_id, event_type, owner_id, payload, status, error, processed_at)
-     VALUES ($1, $2, $3, $4::jsonb, $5, $6, now())
-     ON CONFLICT (provider_event_id) DO UPDATE SET
-       event_type = EXCLUDED.event_type,
-       owner_id = EXCLUDED.owner_id,
-       payload = EXCLUDED.payload,
-       status = EXCLUDED.status,
-       error = EXCLUDED.error,
-       processed_at = now(),
-       updated_at = now()`,
+    `SELECT ${FN}.record_event($1, $2, $3, $4::jsonb, $5, $6)`,
     [
       input.provider_event_id,
       input.event_type,
@@ -471,10 +445,15 @@ export async function recordBillingEvent(input: {
   );
 }
 
+export async function deleteUserBilling(userId: string) {
+  await query(`SELECT ${FN}.delete_user_billing($1)`, [userId]);
+}
+
 export async function getBillingEvent(providerEventId: string) {
-  const result = await query<{ status: string }>(
-    `SELECT status FROM billing_events WHERE provider_event_id = $1`,
+  const result = await query<{ status: string | null }>(
+    `SELECT ${FN}.get_event_status($1) AS status`,
     [providerEventId],
   );
-  return result.rows[0] ?? null;
+  const status = result.rows[0]?.status;
+  return status ? { status } : null;
 }

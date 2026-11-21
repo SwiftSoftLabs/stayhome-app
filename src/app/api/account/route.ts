@@ -3,7 +3,7 @@ import { query as authQuery } from '@/lib/auth/db';
 import { requireAuthUser } from '@/lib/auth/api-guard';
 import { query } from '@/lib/db';
 import { cancelKelviqSubscription } from '@/lib/kelviq.server';
-import type { UserSubscriptionRecord } from '@/types/billing';
+import { deleteUserBilling, getRawUserSubscription } from '@/lib/billing';
 
 async function bestEffort(label: string, fn: () => Promise<void>) {
   try {
@@ -32,11 +32,7 @@ export async function DELETE(request: Request) {
     }
 
     // Fail-closed Kelviq cancel when a paid subscription id exists.
-    const subResult = await query<UserSubscriptionRecord>(
-      `SELECT * FROM user_subscriptions WHERE user_id = $1`,
-      [userId],
-    );
-    const subscription = subResult.rows[0];
+    const subscription = await getRawUserSubscription(userId);
     if (subscription?.kelviq_subscription_id && !subscription.is_manual) {
       await cancelKelviqSubscription(subscription.kelviq_subscription_id, {
         cancellationType: 'IMMEDIATE',
@@ -87,15 +83,7 @@ export async function DELETE(request: Request) {
     await bestEffort('ai_usage', async () => {
       await query(`DELETE FROM ai_usage WHERE family_id = $1`, [userId]);
     });
-    await bestEffort('billing_events', async () => {
-      await query(`DELETE FROM billing_events WHERE owner_id = $1`, [userId]);
-    });
-    await bestEffort('user_subscriptions', async () => {
-      await query(`DELETE FROM user_subscriptions WHERE user_id = $1`, [userId]);
-    });
-    await bestEffort('billing_customers', async () => {
-      await query(`DELETE FROM billing_customers WHERE user_id = $1`, [userId]);
-    });
+    await bestEffort('billing rows', () => deleteUserBilling(userId));
     await bestEffort('profiles', async () => {
       await query(`DELETE FROM profiles WHERE id = $1`, [userId]);
     });
