@@ -5,7 +5,7 @@
  */
 
 /** Synlex moves to its launch domain later; only this env var changes then. */
-const SYNLEX_PUBLIC_BASE = (process.env.SYNLEX_PUBLIC_BASE || 'https://synlex.vercel.app').replace(/\/+$/, '');
+const SYNLEX_PUBLIC_BASE = (process.env.SYNLEX_PUBLIC_BASE || 'https://synlex.swiftsoftlabs.com').replace(/\/+$/, '');
 const SYNLEX_ORG = 'swiftsoftlabs';
 const SYNLEX_PROJECT = 'stayhome-app';
 
