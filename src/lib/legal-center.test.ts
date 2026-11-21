@@ -49,8 +49,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('legal pages from the signed Synlex release', () => {
   it('reads the stayhome-app release and keeps /privacy and /terms for the consent checkboxes', () => {
-    expect(SYNLEX_RELEASE_API).toBe('https://synlex.vercel.app/api/public/v1/swiftsoftlabs/stayhome-app');
-    expect(SYNLEX_PORTAL_URL).toBe('https://synlex.vercel.app/p/swiftsoftlabs/stayhome-app');
+    expect(SYNLEX_RELEASE_API).toBe('https://synlex.swiftsoftlabs.com/api/public/v1/swiftsoftlabs/stayhome-app');
+    expect(SYNLEX_PORTAL_URL).toBe('https://synlex.swiftsoftlabs.com/p/swiftsoftlabs/stayhome-app');
     expect(LEGAL_DOCUMENTS.find((d) => d.type === 'privacy_policy')?.href).toBe('/privacy');
     expect(LEGAL_DOCUMENTS.find((d) => d.type === 'terms')?.href).toBe('/terms');
   });
