@@ -1,14 +1,15 @@
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
+import { publicEnv, serverEnv } from '@/lib/env';
 
-export const SCHEMA = process.env.NEXT_PUBLIC_DB_SCHEMA || 'app_stayhome';
+export const SCHEMA = publicEnv.NEXT_PUBLIC_DB_SCHEMA || 'app_stayhome';
 
 let pool: Pool | null = null;
 
 function resolveSsl(databaseUrl: string): PoolConfig['ssl'] {
-  if (process.env.DATABASE_SSL === 'false') return undefined;
-  if (process.env.DATABASE_SSL === 'true') {
+  if (serverEnv.DATABASE_SSL === 'false') return undefined;
+  if (serverEnv.DATABASE_SSL === 'true') {
     return {
-      rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+      rejectUnauthorized: serverEnv.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
     };
   }
 
@@ -26,7 +27,7 @@ function resolveSsl(databaseUrl: string): PoolConfig['ssl'] {
 
 export function getPool(): Pool {
   if (!pool) {
-    const databaseUrl = process.env.DATABASE_URL?.trim();
+    const databaseUrl = serverEnv.DATABASE_URL?.trim();
     if (!databaseUrl) {
       throw new Error('DATABASE_URL is not set.');
     }

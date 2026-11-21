@@ -1,12 +1,13 @@
 import { authConfig } from './config';
+import { publicEnv, serverEnv } from '@/lib/env';
 
 // Server-only. InsForge rejects anon-key email sends ("Sending emails requires an
 // authenticated user"), so auth emails go through POST /api/email/send-raw with a
 // server credential read at call time. Never logs codes, addresses or provider text.
 function getEmailClient() {
   if (typeof window !== 'undefined') return null;
-  const baseUrl = (process.env.INSFORGE_URL || process.env.NEXT_PUBLIC_INSFORGE_URL || '').trim().replace(/\/+$/, '');
-  const key = (process.env.INSFORGE_API_KEY || process.env.INSFORGE_SERVICE_KEY || '').trim();
+  const baseUrl = (serverEnv.INSFORGE_URL || publicEnv.NEXT_PUBLIC_INSFORGE_URL || '').trim().replace(/\/+$/, '');
+  const key = (serverEnv.INSFORGE_API_KEY || serverEnv.INSFORGE_SERVICE_KEY || '').trim();
   if (!baseUrl || !key) return null;
   return {
     emails: {
@@ -31,7 +32,7 @@ function getEmailClient() {
 }
 
 function logAuthCode(kind: 'verification' | 'reset', email: string, code: string) {
-  if (process.env.NODE_ENV === 'production') return;
+  if (publicEnv.NODE_ENV === 'production') return;
   console.info(`[auth] ${kind} code for ${email}: ${code}`);
 }
 

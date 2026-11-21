@@ -1,3 +1,4 @@
+import { publicEnv, serverEnv } from '@/lib/env';
 function trimTrailingSlash(origin: string) {
   return origin.replace(/\/$/, '');
 }
@@ -31,7 +32,7 @@ export function getOriginFromRequest(request: Request): string | null {
 
 export function getAppOrigin(request?: Request) {
   const configured = trimTrailingSlash(
-    process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '',
+    publicEnv.NEXT_PUBLIC_APP_URL || serverEnv.APP_URL || '',
   );
 
   if (configured && isConfiguredPublicOrigin(configured)) {

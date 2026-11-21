@@ -3,10 +3,11 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { buildCapture, isMarketingPath } from "./marketing-posthog-paths";
+import { publicEnv } from '@/lib/env';
 
 const PRODUCT = "stayhome-app";
-const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim() || "";
-const HOST = (process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com").replace(/\/+$/, "");
+const KEY = publicEnv.NEXT_PUBLIC_POSTHOG_KEY?.trim() || "";
+const HOST = (publicEnv.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com").replace(/\/+$/, "");
 const DISTINCT_KEY = "ssl-marketing-distinct-id";
 
 function distinctId(): string {

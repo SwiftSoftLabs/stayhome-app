@@ -11,6 +11,7 @@ import type {
   BillingSummaryMvp,
   UserSubscriptionRecord,
 } from '@/types/billing';
+import { serverEnv } from '@/lib/env';
 
 export { isPaidPlanCode, isPaidStatus, shouldApplyKelviqEntitlement } from '@/lib/launch/policy';
 
@@ -19,8 +20,8 @@ export { isPaidPlanCode, isPaidStatus, shouldApplyKelviqEntitlement } from '@/li
 // app_stayhome_billing. See migrations/20261221120000_app-stayhome-billing-definer.sql.
 const FN = 'app_stayhome_billing';
 
-const PRELAUNCH_ENABLED = process.env.BILLING_PRE_LAUNCH !== 'false';
-const TESTER_EMAILS = (process.env.BILLING_TESTER_EMAILS || '')
+const PRELAUNCH_ENABLED = serverEnv.BILLING_PRE_LAUNCH !== 'false';
+const TESTER_EMAILS = (serverEnv.BILLING_TESTER_EMAILS || '')
   .split(',')
   .map((value) => value.trim().toLowerCase())
   .filter(Boolean);
