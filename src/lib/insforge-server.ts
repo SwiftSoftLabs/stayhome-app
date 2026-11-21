@@ -1,19 +1,20 @@
 import { createClient, type InsForgeClient } from '@insforge/sdk';
+import { publicEnv, serverEnv } from '@/lib/env';
 
 function getBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_INSFORGE_URL ?? '').replace(/\/+$/, '');
+  return (publicEnv.NEXT_PUBLIC_INSFORGE_URL ?? '').replace(/\/+$/, '');
 }
 
 function getSchemaHeaders(): Record<string, string> {
-  const schema = process.env.NEXT_PUBLIC_DB_SCHEMA?.trim() || 'app_stayhome';
+  const schema = publicEnv.NEXT_PUBLIC_DB_SCHEMA?.trim() || 'app_stayhome';
   return { 'Accept-Profile': schema, 'Content-Profile': schema };
 }
 
 export function getServiceInsforgeClient(accessToken?: string): InsForgeClient {
   const baseUrl = getBaseUrl();
   const headers = getSchemaHeaders();
-  const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY?.trim() ?? '';
-  const apiKey = process.env.INSFORGE_API_KEY?.trim();
+  const anonKey = publicEnv.NEXT_PUBLIC_INSFORGE_ANON_KEY?.trim() ?? '';
+  const apiKey = serverEnv.INSFORGE_API_KEY?.trim();
 
   if (accessToken?.trim() && baseUrl) {
     return createClient({ baseUrl, anonKey, edgeFunctionToken: accessToken, isServerMode: true, headers });

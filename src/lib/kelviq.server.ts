@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import { KELVIQ_CHECKOUT_OPEN } from '@/lib/launch/policy';
+import { serverEnv } from '@/lib/env';
 
-const KELVIQ_API_BASE_URL = process.env.KELVIQ_API_BASE_URL || '';
-const KELVIQ_API_KEY = process.env.KELVIQ_API_KEY || '';
-const KELVIQ_WEBHOOK_SECRET = process.env.KELVIQ_WEBHOOK_SECRET || '';
+const KELVIQ_API_BASE_URL = serverEnv.KELVIQ_API_BASE_URL || '';
+const KELVIQ_API_KEY = serverEnv.KELVIQ_API_KEY || '';
+const KELVIQ_WEBHOOK_SECRET = serverEnv.KELVIQ_WEBHOOK_SECRET || '';
 
 async function kelviqFetch(path: string, init: RequestInit = {}): Promise<unknown> {
   if (!KELVIQ_API_BASE_URL || !KELVIQ_API_KEY) {

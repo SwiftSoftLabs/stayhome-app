@@ -1,59 +1,60 @@
-const schema = process.env.NEXT_PUBLIC_DB_SCHEMA || 'app_stayhome';
+import { publicEnv, serverEnv } from '@/lib/env';
+const schema = publicEnv.NEXT_PUBLIC_DB_SCHEMA || 'app_stayhome';
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
+// Callers pass the value (static read via serverEnv) and its name for the error message.
+function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
 
-function optionalEnv(name: string, fallback: string): string {
-  return process.env[name] || fallback;
+function optionalEnv(value: string | undefined, fallback: string): string {
+  return value || fallback;
 }
 
 export const authConfig = {
   schema,
   appOrigin: schema,
-  databaseUrl: () => requireEnv('DATABASE_URL'),
-  jwtAccessSecret: () => requireEnv('JWT_ACCESS_SECRET'),
-  jwtRefreshSecret: () => requireEnv('JWT_REFRESH_SECRET'),
-  jwtAccessTtlSeconds: Number(optionalEnv('JWT_ACCESS_TTL_SECONDS', '900')),
-  jwtRefreshTtlSeconds: Number(optionalEnv('JWT_REFRESH_TTL_SECONDS', '2592000')),
-  verifyCodeTtlSeconds: Number(optionalEnv('AUTH_VERIFY_CODE_TTL_SECONDS', '900')),
-  resetCodeTtlSeconds: Number(optionalEnv('AUTH_RESET_CODE_TTL_SECONDS', '900')),
-  bcryptRounds: Number(optionalEnv('AUTH_BCRYPT_ROUNDS', '12')),
+  databaseUrl: () => requireEnv('DATABASE_URL', serverEnv.DATABASE_URL),
+  jwtAccessSecret: () => requireEnv('JWT_ACCESS_SECRET', serverEnv.JWT_ACCESS_SECRET),
+  jwtRefreshSecret: () => requireEnv('JWT_REFRESH_SECRET', serverEnv.JWT_REFRESH_SECRET),
+  jwtAccessTtlSeconds: Number(optionalEnv(serverEnv.JWT_ACCESS_TTL_SECONDS, '900')),
+  jwtRefreshTtlSeconds: Number(optionalEnv(serverEnv.JWT_REFRESH_TTL_SECONDS, '2592000')),
+  verifyCodeTtlSeconds: Number(optionalEnv(serverEnv.AUTH_VERIFY_CODE_TTL_SECONDS, '900')),
+  resetCodeTtlSeconds: Number(optionalEnv(serverEnv.AUTH_RESET_CODE_TTL_SECONDS, '900')),
+  bcryptRounds: Number(optionalEnv(serverEnv.AUTH_BCRYPT_ROUNDS, '12')),
   insforgeUrl: () =>
-    process.env.INSFORGE_URL ||
-    process.env.NEXT_PUBLIC_INSFORGE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    serverEnv.INSFORGE_URL ||
+    publicEnv.NEXT_PUBLIC_INSFORGE_URL ||
+    publicEnv.NEXT_PUBLIC_SUPABASE_URL ||
     '',
   insforgeAnonKey: () =>
-    process.env.INSFORGE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    serverEnv.INSFORGE_ANON_KEY ||
+    publicEnv.NEXT_PUBLIC_INSFORGE_ANON_KEY ||
+    publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     '',
-  emailFrom: () => optionalEnv('AUTH_EMAIL_FROM', 'StayHome'),
-  googleClientId: () => process.env.GOOGLE_CLIENT_ID || '',
-  googleClientSecret: () => process.env.GOOGLE_CLIENT_SECRET || '',
-  cookieSecure: process.env.NODE_ENV === 'production',
+  emailFrom: () => optionalEnv(serverEnv.AUTH_EMAIL_FROM, 'StayHome'),
+  googleClientId: () => serverEnv.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: () => serverEnv.GOOGLE_CLIENT_SECRET || '',
+  cookieSecure: publicEnv.NODE_ENV === 'production',
   accessCookieName: 'sh_access',
   refreshCookieName: 'sh_refresh',
   oauthStateCookieName: 'sh_oauth_state',
   legalConsentCookieName: 'sh_legal_consent',
-  jwtMfaPendingTtlSeconds: Number(optionalEnv('JWT_MFA_PENDING_TTL_SECONDS', '300')),
-  encryptionKey: () => optionalEnv('AUTH_ENCRYPTION_KEY', process.env.JWT_ACCESS_SECRET || 'dev-encryption-key-min-32-chars!!'),
-  webauthnRpId: () => optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
-  webauthnRpName: () => optionalEnv('WEBAUTHN_RP_NAME', 'StayHome'),
-  webauthnOrigin: () => optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:3000'),
-  githubClientId: () => process.env.GITHUB_CLIENT_ID || '',
-  githubClientSecret: () => process.env.GITHUB_CLIENT_SECRET || '',
+  jwtMfaPendingTtlSeconds: Number(optionalEnv(serverEnv.JWT_MFA_PENDING_TTL_SECONDS, '300')),
+  encryptionKey: () => optionalEnv(serverEnv.AUTH_ENCRYPTION_KEY, serverEnv.JWT_ACCESS_SECRET || 'dev-encryption-key-min-32-chars!!'),
+  webauthnRpId: () => optionalEnv(serverEnv.WEBAUTHN_RP_ID, 'localhost'),
+  webauthnRpName: () => optionalEnv(serverEnv.WEBAUTHN_RP_NAME, 'StayHome'),
+  webauthnOrigin: () => optionalEnv(serverEnv.WEBAUTHN_ORIGIN, 'http://localhost:3000'),
+  githubClientId: () => serverEnv.GITHUB_CLIENT_ID || '',
+  githubClientSecret: () => serverEnv.GITHUB_CLIENT_SECRET || '',
   mfaPendingCookieName: 'sh_mfa_pending',
 };
 
 export function getAppBaseUrl(requestUrl?: string): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  if (publicEnv.NEXT_PUBLIC_APP_URL) {
+    return publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   }
   if (requestUrl) {
     const url = new URL(requestUrl);

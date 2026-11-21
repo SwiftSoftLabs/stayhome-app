@@ -1,8 +1,9 @@
 import { createClient } from '@insforge/sdk';
+import { publicEnv } from '@/lib/env';
 
-const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL ?? '';
-const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY ?? '';
-export const APP_SCHEMA = process.env.NEXT_PUBLIC_DB_SCHEMA ?? 'app_stayhome';
+const baseUrl = publicEnv.NEXT_PUBLIC_INSFORGE_URL ?? '';
+const anonKey = publicEnv.NEXT_PUBLIC_INSFORGE_ANON_KEY ?? '';
+export const APP_SCHEMA = publicEnv.NEXT_PUBLIC_DB_SCHEMA ?? 'app_stayhome';
 
 if (!baseUrl || !anonKey) {
   console.warn('Missing InsForge env vars — set NEXT_PUBLIC_INSFORGE_URL and NEXT_PUBLIC_INSFORGE_ANON_KEY');

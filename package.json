@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:unit": "node --experimental-strip-types --test src/lib/launch/policy.test.ts src/lib/legal-compliance.test.ts && vitest run",
+    "check:env": "node --test scripts/check-env-access.test.mjs && node scripts/check-env-access.mjs",
     "test:legal": "node --experimental-strip-types --test src/lib/legal-compliance.test.ts"
   },
   "keywords": [],

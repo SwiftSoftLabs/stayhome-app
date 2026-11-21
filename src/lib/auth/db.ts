@@ -1,16 +1,17 @@
 import { Pool, type QueryResultRow } from 'pg';
 import { authConfig } from './config';
+import { serverEnv } from '@/lib/env';
 
 let pool: Pool | null = null;
 
 function getPool(): Pool {
   if (!pool) {
-    const sslEnabled = process.env.DATABASE_SSL === 'true';
+    const sslEnabled = serverEnv.DATABASE_SSL === 'true';
     pool = new Pool({
       connectionString: authConfig.databaseUrl(),
       ssl: sslEnabled
         ? {
-            rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+            rejectUnauthorized: serverEnv.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
           }
         : undefined,
     });

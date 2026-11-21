@@ -6,16 +6,17 @@ import type {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from 'openai/resources/chat/completions';
+import { serverEnv } from '@/lib/env';
 
 const DEFAULT_CHAT_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_EMBEDDING_MODEL = 'openai/text-embedding-3-small';
 
 export function isOpenRouterConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  return Boolean(serverEnv.OPENROUTER_API_KEY?.trim());
 }
 
 export function getOpenRouterClient(): OpenAI {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  const apiKey = serverEnv.OPENROUTER_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY is not configured. Run: npx @insforge/cli ai setup');
   }
@@ -28,8 +29,8 @@ export function getOpenRouterClient(): OpenAI {
 export function getChatModel(override?: string): string {
   return (
     override?.trim() ||
-    process.env.OPENROUTER_CHAT_MODEL?.trim() ||
-    process.env.AI_CHAT_MODEL?.trim() ||
+    serverEnv.OPENROUTER_CHAT_MODEL?.trim() ||
+    serverEnv.AI_CHAT_MODEL?.trim() ||
     DEFAULT_CHAT_MODEL
   );
 }
@@ -37,8 +38,8 @@ export function getChatModel(override?: string): string {
 export function getEmbeddingModel(override?: string): string {
   return (
     override?.trim() ||
-    process.env.OPENROUTER_EMBEDDING_MODEL?.trim() ||
-    process.env.AI_EMBEDDING_MODEL?.trim() ||
+    serverEnv.OPENROUTER_EMBEDDING_MODEL?.trim() ||
+    serverEnv.AI_EMBEDDING_MODEL?.trim() ||
     DEFAULT_EMBEDDING_MODEL
   );
 }
@@ -114,7 +115,7 @@ export async function generateImage(options: {
   const client = getOpenRouterClient();
   const imageModel =
     options.model?.trim() ||
-    process.env.OPENROUTER_IMAGE_MODEL?.trim() ||
+    serverEnv.OPENROUTER_IMAGE_MODEL?.trim() ||
     'google/gemini-2.5-flash-image';
 
   return client.images.generate({

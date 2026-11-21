@@ -1,0 +1,7 @@
+# Changes to how secrets are read, checked or deployed need review from @khanzohan.
+# Keep this list short: only the env door, its guard, CI and deploy config.
+/src/lib/env.ts              @khanzohan
+/scripts/check-env-access*   @khanzohan
+/.github/                    @khanzohan
+/next.config.*               @khanzohan
+/src/middleware.ts           @khanzohan

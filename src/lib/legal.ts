@@ -1,3 +1,4 @@
+import { serverEnv } from '@/lib/env';
 /**
  * StayHome's legal pages show the documents SwiftSoft Labs LLC signed in Synlex.
  * Synlex serves the latest signed release as public JSON, so a newly signed
@@ -5,7 +6,7 @@
  */
 
 /** Synlex moves to its launch domain later; only this env var changes then. */
-const SYNLEX_PUBLIC_BASE = (process.env.SYNLEX_PUBLIC_BASE || 'https://synlex.swiftsoftlabs.com').replace(/\/+$/, '');
+const SYNLEX_PUBLIC_BASE = (serverEnv.SYNLEX_PUBLIC_BASE || 'https://synlex.swiftsoftlabs.com').replace(/\/+$/, '');
 const SYNLEX_ORG = 'swiftsoftlabs';
 const SYNLEX_PROJECT = 'stayhome-app';
 
